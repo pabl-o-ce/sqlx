@@ -5,6 +5,7 @@ use sqlx_core::Url;
 
 use crate::error::Error;
 
+use super::ssl_mode::MssqlSslMode;
 use super::MssqlConnectOptions;
 
 impl MssqlConnectOptions {
@@ -47,6 +48,20 @@ impl MssqlConnectOptions {
 
         for (key, value) in url.query_pairs().into_iter() {
             match &*key {
+                "sslmode" | "ssl_mode" => {
+                    options = options.ssl_mode(match &*value {
+                        "disabled" => MssqlSslMode::Disabled,
+                        "login_only" => MssqlSslMode::LoginOnly,
+                        "preferred" => MssqlSslMode::Preferred,
+                        "required" => MssqlSslMode::Required,
+                        _ => {
+                            return Err(Error::Configuration(
+                                format!("unknown sslmode value: {value}").into(),
+                            ))
+                        }
+                    });
+                }
+
                 "encrypt" => {
                     options = options
                         .encrypt(value.parse().map_err(Error::config)?);
@@ -92,6 +107,14 @@ impl MssqlConnectOptions {
             url.set_path(database);
         }
 
+        let sslmode = match self.ssl_mode {
+            MssqlSslMode::Disabled => "disabled",
+            MssqlSslMode::LoginOnly => "login_only",
+            MssqlSslMode::Preferred => "preferred",
+            MssqlSslMode::Required => "required",
+        };
+        url.query_pairs_mut().append_pair("sslmode", sslmode);
+
         url
     }
 }
@@ -123,4 +146,61 @@ fn it_parses_url_with_instance() {
     let opts = MssqlConnectOptions::from_str(url).unwrap();
 
     assert_eq!(opts.instance, Some("SQLEXPRESS".into()));
+}
+
+#[test]
+fn it_parses_sslmode_disabled() {
+    let url = "mssql://sa:password@localhost/master?sslmode=disabled";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert!(matches!(opts.ssl_mode, MssqlSslMode::Disabled));
+}
+
+#[test]
+fn it_parses_sslmode_login_only() {
+    let url = "mssql://sa:password@localhost/master?ssl_mode=login_only";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert!(matches!(opts.ssl_mode, MssqlSslMode::LoginOnly));
+}
+
+#[test]
+fn it_parses_sslmode_preferred() {
+    let url = "mssql://sa:password@localhost/master?sslmode=preferred";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert!(matches!(opts.ssl_mode, MssqlSslMode::Preferred));
+}
+
+#[test]
+fn it_parses_sslmode_required() {
+    let url = "mssql://sa:password@localhost/master?sslmode=required";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert!(matches!(opts.ssl_mode, MssqlSslMode::Required));
+}
+
+#[test]
+fn it_parses_encrypt_true_as_required() {
+    let url = "mssql://sa:password@localhost/master?encrypt=true";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert!(matches!(opts.ssl_mode, MssqlSslMode::Required));
+}
+
+#[test]
+fn it_parses_encrypt_false_as_disabled() {
+    let url = "mssql://sa:password@localhost/master?encrypt=false";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert!(matches!(opts.ssl_mode, MssqlSslMode::Disabled));
+}
+
+#[test]
+fn it_rejects_invalid_sslmode() {
+    let url = "mssql://sa:password@localhost/master?sslmode=bogus";
+    assert!(MssqlConnectOptions::from_str(url).is_err());
+}
+
+#[test]
+fn it_roundtrips_sslmode_in_url() {
+    let url = "mssql://sa:password@localhost/master?sslmode=login_only";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    let built = opts.build_url();
+    let opts2 = MssqlConnectOptions::parse_from_url(&built).unwrap();
+    assert!(matches!(opts2.ssl_mode, MssqlSslMode::LoginOnly));
 }

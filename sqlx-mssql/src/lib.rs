@@ -10,6 +10,8 @@ use crate::executor::Executor;
 
 pub(crate) use sqlx_core::driver_prelude::*;
 
+pub mod advisory_lock;
+
 #[cfg(feature = "any")]
 pub mod any;
 
@@ -35,11 +37,13 @@ mod migrate;
 #[cfg(feature = "migrate")]
 mod testing;
 
+pub use advisory_lock::{MssqlAdvisoryLock, MssqlAdvisoryLockMode};
 pub use arguments::MssqlArguments;
 pub use column::MssqlColumn;
 pub use connection::MssqlConnection;
 pub use database::Mssql;
 pub use error::MssqlDatabaseError;
+pub use options::ssl_mode::MssqlSslMode;
 pub use options::MssqlConnectOptions;
 pub use query_result::MssqlQueryResult;
 pub use row::MssqlRow;

@@ -36,6 +36,20 @@ test_type!(f64(
     "CAST(939399419.1225182 AS FLOAT)" == 939399419.1225182_f64
 ));
 
+test_type!(f64_money<f64>(
+    Mssql,
+    "CAST(922337203685477.5807 AS MONEY)" == 922337203685477.5807_f64,
+    "CAST(0 AS MONEY)" == 0.0_f64,
+    "CAST(-1234.5678 AS MONEY)" == -1234.5678_f64,
+));
+
+test_type!(f64_smallmoney<f64>(
+    Mssql,
+    "CAST(214748.3647 AS SMALLMONEY)" == 214748.3647_f64,
+    "CAST(0 AS SMALLMONEY)" == 0.0_f64,
+    "CAST(-1234.5678 AS SMALLMONEY)" == -1234.5678_f64,
+));
+
 test_type!(str_nvarchar<String>(Mssql,
     "CAST('this is foo' as NVARCHAR)" == "this is foo",
 ));
@@ -154,11 +168,23 @@ test_type!(rust_decimal<sqlx::types::Decimal>(Mssql,
     "CAST('-1.23' AS DECIMAL(10,2))" == sqlx::types::Decimal::new(-123, 2),
 ));
 
+#[cfg(feature = "rust_decimal")]
+test_type!(rust_decimal_money<sqlx::types::Decimal>(Mssql,
+    "CAST(1234.5678 AS MONEY)" == sqlx::types::Decimal::new(12345678, 4),
+    "CAST(0 AS MONEY)" == sqlx::types::Decimal::ZERO,
+));
+
 #[cfg(feature = "bigdecimal")]
 test_type!(bigdecimal<sqlx::types::BigDecimal>(Mssql,
     "CAST('0' AS DECIMAL(10,2))" == "0.00".parse::<sqlx::types::BigDecimal>().unwrap(),
     "CAST('1.23' AS DECIMAL(10,2))" == "1.23".parse::<sqlx::types::BigDecimal>().unwrap(),
     "CAST('-1.23' AS DECIMAL(10,2))" == "-1.23".parse::<sqlx::types::BigDecimal>().unwrap(),
+));
+
+#[cfg(feature = "bigdecimal")]
+test_type!(bigdecimal_money<sqlx::types::BigDecimal>(Mssql,
+    "CAST(1234.5678 AS MONEY)" == "1234.5678".parse::<sqlx::types::BigDecimal>().unwrap(),
+    "CAST(0 AS MONEY)" == "0".parse::<sqlx::types::BigDecimal>().unwrap(),
 ));
 
 #[cfg(feature = "json")]

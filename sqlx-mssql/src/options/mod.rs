@@ -1,7 +1,9 @@
 mod connect;
 mod parse;
+pub mod ssl_mode;
 
 use crate::connection::LogSettings;
+use ssl_mode::MssqlSslMode;
 
 /// Options and flags which can be used to configure a MSSQL connection.
 ///
@@ -18,7 +20,8 @@ use crate::connection::LogSettings;
 ///
 /// |Parameter|Default|Description|
 /// |---------|-------|-----------|
-/// | `encrypt` | `false` | Whether to use TLS encryption. |
+/// | `sslmode` / `ssl_mode` | `preferred` | SSL encryption mode: `disabled`, `login_only`, `preferred`, `required`. |
+/// | `encrypt` | (none) | Legacy alias: `true` maps to `required`, `false` to `disabled`. |
 /// | `trust_server_certificate` | `false` | Whether to trust the server certificate without validation. |
 /// | `statement-cache-capacity` | `100` | The maximum number of prepared statements stored in the cache. |
 /// | `app_name` | `sqlx` | The application name sent to the server. |
@@ -52,7 +55,7 @@ pub struct MssqlConnectOptions {
     pub(crate) password: Option<String>,
     pub(crate) database: Option<String>,
     pub(crate) instance: Option<String>,
-    pub(crate) encrypt: bool,
+    pub(crate) ssl_mode: MssqlSslMode,
     pub(crate) trust_server_certificate: bool,
     pub(crate) statement_cache_capacity: usize,
     pub(crate) app_name: String,
@@ -75,7 +78,7 @@ impl MssqlConnectOptions {
             password: None,
             database: None,
             instance: None,
-            encrypt: false,
+            ssl_mode: MssqlSslMode::default(),
             trust_server_certificate: false,
             statement_cache_capacity: 100,
             app_name: String::from("sqlx"),
@@ -121,9 +124,22 @@ impl MssqlConnectOptions {
         self
     }
 
+    /// Sets the SSL encryption mode.
+    pub fn ssl_mode(mut self, mode: MssqlSslMode) -> Self {
+        self.ssl_mode = mode;
+        self
+    }
+
     /// Sets whether to use TLS encryption.
+    ///
+    /// This is a legacy convenience method.
+    /// `true` maps to [`MssqlSslMode::Required`], `false` to [`MssqlSslMode::Disabled`].
     pub fn encrypt(mut self, encrypt: bool) -> Self {
-        self.encrypt = encrypt;
+        self.ssl_mode = if encrypt {
+            MssqlSslMode::Required
+        } else {
+            MssqlSslMode::Disabled
+        };
         self
     }
 
@@ -190,11 +206,12 @@ impl MssqlConnectOptions {
             config.trust_cert();
         }
 
-        if self.encrypt {
-            config.encryption(tiberius::EncryptionLevel::Required);
-        } else {
-            config.encryption(tiberius::EncryptionLevel::NotSupported);
-        }
+        config.encryption(match self.ssl_mode {
+            MssqlSslMode::Disabled => tiberius::EncryptionLevel::NotSupported,
+            MssqlSslMode::LoginOnly => tiberius::EncryptionLevel::Off,
+            MssqlSslMode::Preferred => tiberius::EncryptionLevel::On,
+            MssqlSslMode::Required => tiberius::EncryptionLevel::Required,
+        });
 
         config
     }

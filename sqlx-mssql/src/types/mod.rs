@@ -10,8 +10,8 @@
 //! | `i16`                                 | SMALLINT                                             |
 //! | `i32`                                 | INT                                                  |
 //! | `i64`                                 | BIGINT                                               |
-//! | `f32`                                 | REAL                                                 |
-//! | `f64`                                 | FLOAT                                                |
+//! | `f32`                                 | REAL, FLOAT                                          |
+//! | `f64`                                 | REAL, FLOAT, MONEY, SMALLMONEY                       |
 //! | `&str`, [`String`]                    | NVARCHAR                                             |
 //! | `&[u8]`, `Vec<u8>`                   | VARBINARY                                            |
 //!
