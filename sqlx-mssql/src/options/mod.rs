@@ -23,6 +23,8 @@ use ssl_mode::MssqlSslMode;
 /// | `sslmode` / `ssl_mode` | `preferred` | SSL encryption mode: `disabled`, `login_only`, `preferred`, `required`. |
 /// | `encrypt` | (none) | Legacy alias: `true` maps to `required`, `false` to `disabled`. |
 /// | `trust_server_certificate` | `false` | Whether to trust the server certificate without validation. |
+/// | `trust_server_certificate_ca` | (none) | Path to a CA certificate file to validate the server certificate against. Mutually exclusive with `trust_server_certificate`. |
+/// | `application_intent` | `read_write` | Application intent: `read_write` or `read_only`. `read_only` routes to Always On read replicas. |
 /// | `statement-cache-capacity` | `100` | The maximum number of prepared statements stored in the cache. |
 /// | `app_name` | `sqlx` | The application name sent to the server. |
 /// | `instance` | `None` | The SQL Server instance name. |
@@ -57,6 +59,8 @@ pub struct MssqlConnectOptions {
     pub(crate) instance: Option<String>,
     pub(crate) ssl_mode: MssqlSslMode,
     pub(crate) trust_server_certificate: bool,
+    pub(crate) trust_server_certificate_ca: Option<String>,
+    pub(crate) application_intent_read_only: bool,
     pub(crate) statement_cache_capacity: usize,
     pub(crate) app_name: String,
     pub(crate) log_settings: LogSettings,
@@ -80,6 +84,8 @@ impl MssqlConnectOptions {
             instance: None,
             ssl_mode: MssqlSslMode::default(),
             trust_server_certificate: false,
+            trust_server_certificate_ca: None,
+            application_intent_read_only: false,
             statement_cache_capacity: 100,
             app_name: String::from("sqlx"),
             log_settings: Default::default(),
@@ -149,6 +155,31 @@ impl MssqlConnectOptions {
         self
     }
 
+    /// Sets a CA certificate file path to validate the server certificate against.
+    ///
+    /// Accepts `.pem`, `.crt`, or `.der` certificate files.
+    ///
+    /// This is mutually exclusive with [`trust_server_certificate`](Self::trust_server_certificate).
+    /// When a CA path is set, `trust_server_certificate` is ignored.
+    pub fn trust_server_certificate_ca(mut self, path: &str) -> Self {
+        self.trust_server_certificate_ca = Some(path.to_owned());
+        self
+    }
+
+    /// Sets the application intent to read-only.
+    ///
+    /// When `true`, sets `ApplicationIntent=ReadOnly` in the TDS login packet,
+    /// which routes connections to Always On Availability Group read replicas.
+    pub fn application_intent_read_only(mut self, read_only: bool) -> Self {
+        self.application_intent_read_only = read_only;
+        self
+    }
+
+    /// Get whether the application intent is set to read-only.
+    pub fn get_application_intent_read_only(&self) -> bool {
+        self.application_intent_read_only
+    }
+
     /// Sets the capacity of the connection's statement cache.
     pub fn statement_cache_capacity(mut self, capacity: usize) -> Self {
         self.statement_cache_capacity = capacity;
@@ -202,8 +233,15 @@ impl MssqlConnectOptions {
             self.password.as_deref().unwrap_or(""),
         ));
 
-        if self.trust_server_certificate {
+        if let Some(ca_path) = &self.trust_server_certificate_ca {
+            // trust_cert_ca and trust_cert are mutually exclusive in tiberius
+            config.trust_cert_ca(ca_path);
+        } else if self.trust_server_certificate {
             config.trust_cert();
+        }
+
+        if self.application_intent_read_only {
+            config.readonly(true);
         }
 
         config.encryption(match self.ssl_mode {

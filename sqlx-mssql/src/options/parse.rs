@@ -85,6 +85,26 @@ impl MssqlConnectOptions {
                         .statement_cache_capacity(value.parse().map_err(Error::config)?);
                 }
 
+                "application_intent" | "applicationIntent" => {
+                    match &*value {
+                        "read_only" | "ReadOnly" => {
+                            options = options.application_intent_read_only(true);
+                        }
+                        "read_write" | "ReadWrite" => {
+                            options = options.application_intent_read_only(false);
+                        }
+                        _ => {
+                            return Err(Error::Configuration(
+                                format!("unknown application_intent value: {value}").into(),
+                            ))
+                        }
+                    }
+                }
+
+                "trust_server_certificate_ca" | "trustServerCertificateCa" => {
+                    options = options.trust_server_certificate_ca(&value);
+                }
+
                 _ => {}
             }
         }
@@ -114,6 +134,16 @@ impl MssqlConnectOptions {
             MssqlSslMode::Required => "required",
         };
         url.query_pairs_mut().append_pair("sslmode", sslmode);
+
+        if self.application_intent_read_only {
+            url.query_pairs_mut()
+                .append_pair("application_intent", "read_only");
+        }
+
+        if let Some(ca_path) = &self.trust_server_certificate_ca {
+            url.query_pairs_mut()
+                .append_pair("trust_server_certificate_ca", ca_path);
+        }
 
         url
     }
@@ -203,4 +233,62 @@ fn it_roundtrips_sslmode_in_url() {
     let built = opts.build_url();
     let opts2 = MssqlConnectOptions::parse_from_url(&built).unwrap();
     assert!(matches!(opts2.ssl_mode, MssqlSslMode::LoginOnly));
+}
+
+#[test]
+fn it_parses_application_intent_read_only() {
+    let url = "mssql://sa:password@localhost/master?application_intent=read_only";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert!(opts.application_intent_read_only);
+}
+
+#[test]
+fn it_parses_application_intent_read_write() {
+    let url = "mssql://sa:password@localhost/master?application_intent=read_write";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert!(!opts.application_intent_read_only);
+}
+
+#[test]
+fn it_parses_application_intent_camel_case() {
+    let url = "mssql://sa:password@localhost/master?applicationIntent=ReadOnly";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert!(opts.application_intent_read_only);
+}
+
+#[test]
+fn it_rejects_invalid_application_intent() {
+    let url = "mssql://sa:password@localhost/master?application_intent=bogus";
+    assert!(MssqlConnectOptions::from_str(url).is_err());
+}
+
+#[test]
+fn it_parses_trust_server_certificate_ca() {
+    let url = "mssql://sa:password@localhost/master?trust_server_certificate_ca=/path/to/ca.pem";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert_eq!(opts.trust_server_certificate_ca, Some("/path/to/ca.pem".into()));
+}
+
+#[test]
+fn it_roundtrips_application_intent_in_url() {
+    let opts = MssqlConnectOptions::new()
+        .host("localhost")
+        .username("sa")
+        .password("password")
+        .application_intent_read_only(true);
+    let built = opts.build_url();
+    let opts2 = MssqlConnectOptions::parse_from_url(&built).unwrap();
+    assert!(opts2.application_intent_read_only);
+}
+
+#[test]
+fn it_roundtrips_trust_cert_ca_in_url() {
+    let opts = MssqlConnectOptions::new()
+        .host("localhost")
+        .username("sa")
+        .password("password")
+        .trust_server_certificate_ca("/etc/ssl/ca.pem");
+    let built = opts.build_url();
+    let opts2 = MssqlConnectOptions::parse_from_url(&built).unwrap();
+    assert_eq!(opts2.trust_server_certificate_ca, Some("/etc/ssl/ca.pem".into()));
 }

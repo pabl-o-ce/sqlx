@@ -502,3 +502,13 @@ required-features = ["mssql", "macros", "migrate"]
 name = "mssql-advisory-lock"
 path = "tests/mssql/advisory-lock.rs"
 required-features = ["mssql"]
+
+[[test]]
+name = "mssql-isolation-level"
+path = "tests/mssql/isolation-level.rs"
+required-features = ["mssql"]
+
+[[test]]
+name = "mssql-bulk-insert"
+path = "tests/mssql/bulk-insert.rs"
+required-features = ["mssql"]

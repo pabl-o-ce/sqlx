@@ -11,6 +11,8 @@ use crate::executor::Executor;
 pub(crate) use sqlx_core::driver_prelude::*;
 
 pub mod advisory_lock;
+mod bulk_insert;
+mod isolation_level;
 
 #[cfg(feature = "any")]
 pub mod any;
@@ -39,10 +41,12 @@ mod testing;
 
 pub use advisory_lock::{MssqlAdvisoryLock, MssqlAdvisoryLockMode};
 pub use arguments::MssqlArguments;
+pub use bulk_insert::MssqlBulkInsert;
 pub use column::MssqlColumn;
 pub use connection::MssqlConnection;
 pub use database::Mssql;
 pub use error::MssqlDatabaseError;
+pub use isolation_level::MssqlIsolationLevel;
 pub use options::ssl_mode::MssqlSslMode;
 pub use options::MssqlConnectOptions;
 pub use query_result::MssqlQueryResult;
@@ -51,6 +55,9 @@ pub use statement::MssqlStatement;
 pub use transaction::MssqlTransactionManager;
 pub use type_info::MssqlTypeInfo;
 pub use value::{MssqlValue, MssqlValueRef};
+
+// Re-export tiberius types needed for bulk insert row construction.
+pub use tiberius::{IntoRow, IntoSql, TokenRow};
 
 /// An alias for [`Pool`][crate::pool::Pool], specialized for MSSQL.
 pub type MssqlPool = crate::pool::Pool<Mssql>;
