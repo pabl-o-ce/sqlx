@@ -18,7 +18,7 @@ migrate = ["sqlx-core/migrate"]
 # Type Integration features
 bigdecimal = ["dep:bigdecimal", "sqlx-core/bigdecimal"]
 chrono = ["dep:chrono", "sqlx-core/chrono", "tiberius/chrono"]
-rust_decimal = ["dep:rust_decimal", "sqlx-core/rust_decimal"]
+rust_decimal = ["dep:rust_decimal", "sqlx-core/rust_decimal", "tiberius/rust_decimal"]
 time = ["dep:time", "sqlx-core/time"]
 uuid = ["dep:uuid", "sqlx-core/uuid"]
 

@@ -24,6 +24,10 @@ pub(crate) enum MssqlData {
     NaiveDate(chrono::NaiveDate),
     #[cfg(feature = "chrono")]
     NaiveTime(chrono::NaiveTime),
+    #[cfg(feature = "uuid")]
+    Uuid(uuid::Uuid),
+    #[cfg(feature = "rust_decimal")]
+    Decimal(rust_decimal::Decimal),
 }
 
 /// Implementation of [`Value`] for MSSQL.
@@ -158,6 +162,17 @@ pub(crate) fn column_data_to_mssql_data(data: &tiberius::ColumnData<'_>) -> Mssq
             let naive = chrono::NaiveDateTime::new(date, time)
                 - chrono::Duration::minutes(dto.offset() as i64);
             MssqlData::NaiveDateTime(naive)
+        }
+
+        #[cfg(feature = "uuid")]
+        tiberius::ColumnData::Guid(Some(v)) => MssqlData::Uuid(*v),
+
+        #[cfg(feature = "rust_decimal")]
+        tiberius::ColumnData::Numeric(Some(n)) => {
+            MssqlData::Decimal(rust_decimal::Decimal::from_i128_with_scale(
+                n.value(),
+                n.scale() as u32,
+            ))
         }
 
         // All None variants and unhandled types map to Null

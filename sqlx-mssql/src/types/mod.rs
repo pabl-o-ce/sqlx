@@ -15,6 +15,13 @@
 //! | `&str`, [`String`]                    | NVARCHAR                                             |
 //! | `&[u8]`, `Vec<u8>`                   | VARBINARY                                            |
 //!
+//! ### Feature-gated
+//!
+//! | Rust type                             | MSSQL type(s)                                        |
+//! |---------------------------------------|------------------------------------------------------|
+//! | `uuid::Uuid`                          | UNIQUEIDENTIFIER                                     |
+//! | `rust_decimal::Decimal`               | DECIMAL, NUMERIC, MONEY                              |
+//!
 //! # Nullable
 //!
 //! In addition, `Option<T>` is supported where `T` implements `Type`. An `Option<T>` represents
@@ -28,4 +35,8 @@ mod bytes;
 mod chrono;
 mod float;
 mod int;
+#[cfg(feature = "rust_decimal")]
+mod rust_decimal;
 mod str;
+#[cfg(feature = "uuid")]
+mod uuid;

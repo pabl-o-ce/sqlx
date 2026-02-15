@@ -59,4 +59,8 @@ pub enum MssqlArgumentValue {
     NaiveDate(chrono::NaiveDate),
     #[cfg(feature = "chrono")]
     NaiveTime(chrono::NaiveTime),
+    #[cfg(feature = "uuid")]
+    Uuid(uuid::Uuid),
+    #[cfg(feature = "rust_decimal")]
+    Decimal(rust_decimal::Decimal),
 }

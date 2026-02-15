@@ -21,6 +21,9 @@ impl_type_checking!(
 
         // VARBINARY, BINARY, IMAGE
         Vec<u8>,
+
+        #[cfg(feature = "uuid")]
+        sqlx::types::Uuid,
     },
     ParamChecking::Weak,
     feature-types: _info => None,
@@ -35,6 +38,8 @@ impl_type_checking!(
     },
     numeric-types: {
         bigdecimal: { },
-        rust_decimal: { },
+        rust_decimal: {
+            sqlx::types::Decimal,
+        },
     },
 );

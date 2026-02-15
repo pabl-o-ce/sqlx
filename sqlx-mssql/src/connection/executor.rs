@@ -85,6 +85,25 @@ impl MssqlConnection {
                     MssqlArgumentValue::NaiveTime(v) => {
                         query.bind(*v);
                     }
+                    #[cfg(feature = "uuid")]
+                    MssqlArgumentValue::Uuid(v) => {
+                        query.bind(v);
+                    }
+                    #[cfg(feature = "rust_decimal")]
+                    MssqlArgumentValue::Decimal(v) => {
+                        let unpacked = v.unpack();
+                        let mut value = (((unpacked.hi as u128) << 64)
+                            + ((unpacked.mid as u128) << 32)
+                            + unpacked.lo as u128)
+                            as i128;
+                        if v.is_sign_negative() {
+                            value = -value;
+                        }
+                        query.bind(tiberius::numeric::Numeric::new_with_scale(
+                            value,
+                            v.scale() as u8,
+                        ));
+                    }
                 }
             }
 
