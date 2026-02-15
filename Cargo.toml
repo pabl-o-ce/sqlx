@@ -7,6 +7,7 @@ members = [
     "sqlx-test",
     "sqlx-cli",
     #    "sqlx-bench",
+    "sqlx-mssql",
     "sqlx-mysql",
     "sqlx-postgres",
     "sqlx-sqlite",
@@ -63,14 +64,14 @@ rustdoc-args = ["--cfg", "docsrs"]
 default = ["any", "macros", "migrate", "json"]
 
 derive = ["sqlx-macros/derive"]
-macros = ["derive", "sqlx-macros/macros", "sqlx-core/offline", "sqlx-mysql?/offline", "sqlx-postgres?/offline", "sqlx-sqlite?/offline"]
-migrate = ["sqlx-core/migrate", "sqlx-macros?/migrate", "sqlx-mysql?/migrate", "sqlx-postgres?/migrate", "sqlx-sqlite?/migrate"]
+macros = ["derive", "sqlx-macros/macros", "sqlx-core/offline", "sqlx-mssql?/offline", "sqlx-mysql?/offline", "sqlx-postgres?/offline", "sqlx-sqlite?/offline"]
+migrate = ["sqlx-core/migrate", "sqlx-macros?/migrate", "sqlx-mssql?/migrate", "sqlx-mysql?/migrate", "sqlx-postgres?/migrate", "sqlx-sqlite?/migrate"]
 
 # Enable parsing of `sqlx.toml` for configuring macros and migrations.
 sqlx-toml = ["sqlx-core/sqlx-toml", "sqlx-macros?/sqlx-toml", "sqlx-sqlite?/sqlx-toml"]
 
 # intended mainly for CI and docs
-all-databases = ["mysql", "sqlite", "postgres", "any"]
+all-databases = ["mssql", "mysql", "sqlite", "postgres", "any"]
 _unstable-all-types = [
     "bigdecimal",
     "rust_decimal",
@@ -117,7 +118,8 @@ _rt-tokio = []
 _sqlite = []
 
 # database
-any = ["sqlx-core/any", "sqlx-mysql?/any", "sqlx-postgres?/any", "sqlx-sqlite?/any"]
+any = ["sqlx-core/any", "sqlx-mssql?/any", "sqlx-mysql?/any", "sqlx-postgres?/any", "sqlx-sqlite?/any"]
+mssql = ["sqlx-mssql", "sqlx-macros?/mssql"]
 postgres = ["sqlx-postgres", "sqlx-macros?/postgres"]
 mysql = ["sqlx-mysql", "sqlx-macros?/mysql"]
 sqlite = ["sqlite-bundled", "sqlite-deserialize", "sqlite-load-extension", "sqlite-unlock-notify"]
@@ -147,17 +149,17 @@ sqlite-preupdate-hook = ["sqlx-sqlite/preupdate-hook"]
 sqlite-unlock-notify = ["sqlx-sqlite/unlock-notify"]
 
 # types
-json = ["sqlx-core/json", "sqlx-macros?/json", "sqlx-mysql?/json", "sqlx-postgres?/json", "sqlx-sqlite?/json"]
+json = ["sqlx-core/json", "sqlx-macros?/json", "sqlx-mssql?/json", "sqlx-mysql?/json", "sqlx-postgres?/json", "sqlx-sqlite?/json"]
 
-bigdecimal = ["sqlx-core/bigdecimal", "sqlx-macros?/bigdecimal", "sqlx-mysql?/bigdecimal", "sqlx-postgres?/bigdecimal"]
+bigdecimal = ["sqlx-core/bigdecimal", "sqlx-macros?/bigdecimal", "sqlx-mssql?/bigdecimal", "sqlx-mysql?/bigdecimal", "sqlx-postgres?/bigdecimal"]
 bit-vec = ["sqlx-core/bit-vec", "sqlx-macros?/bit-vec", "sqlx-postgres?/bit-vec"]
-chrono = ["sqlx-core/chrono", "sqlx-macros?/chrono", "sqlx-mysql?/chrono", "sqlx-postgres?/chrono", "sqlx-sqlite?/chrono"]
+chrono = ["sqlx-core/chrono", "sqlx-macros?/chrono", "sqlx-mssql?/chrono", "sqlx-mysql?/chrono", "sqlx-postgres?/chrono", "sqlx-sqlite?/chrono"]
 ipnet = ["sqlx-core/ipnet", "sqlx-macros?/ipnet", "sqlx-postgres?/ipnet"]
 ipnetwork = ["sqlx-core/ipnetwork", "sqlx-macros?/ipnetwork", "sqlx-postgres?/ipnetwork"]
 mac_address = ["sqlx-core/mac_address", "sqlx-macros?/mac_address", "sqlx-postgres?/mac_address"]
-rust_decimal = ["sqlx-core/rust_decimal", "sqlx-macros?/rust_decimal", "sqlx-mysql?/rust_decimal", "sqlx-postgres?/rust_decimal"]
-time = ["sqlx-core/time", "sqlx-macros?/time", "sqlx-mysql?/time", "sqlx-postgres?/time", "sqlx-sqlite?/time"]
-uuid = ["sqlx-core/uuid", "sqlx-macros?/uuid", "sqlx-mysql?/uuid", "sqlx-postgres?/uuid", "sqlx-sqlite?/uuid"]
+rust_decimal = ["sqlx-core/rust_decimal", "sqlx-macros?/rust_decimal", "sqlx-mssql?/rust_decimal", "sqlx-mysql?/rust_decimal", "sqlx-postgres?/rust_decimal"]
+time = ["sqlx-core/time", "sqlx-macros?/time", "sqlx-mssql?/time", "sqlx-mysql?/time", "sqlx-postgres?/time", "sqlx-sqlite?/time"]
+uuid = ["sqlx-core/uuid", "sqlx-macros?/uuid", "sqlx-mssql?/uuid", "sqlx-mysql?/uuid", "sqlx-postgres?/uuid", "sqlx-sqlite?/uuid"]
 regexp = ["sqlx-sqlite?/regexp"]
 bstr = ["sqlx-core/bstr"]
 
@@ -168,6 +170,7 @@ sqlx-macros-core = { version = "=0.9.0-alpha.1", path = "sqlx-macros-core" }
 sqlx-macros = { version = "=0.9.0-alpha.1", path = "sqlx-macros" }
 
 # Driver crates
+sqlx-mssql = { version = "=0.9.0-alpha.1", path = "sqlx-mssql" }
 sqlx-mysql = { version = "=0.9.0-alpha.1", path = "sqlx-mysql" }
 sqlx-postgres = { version = "=0.9.0-alpha.1", path = "sqlx-postgres" }
 sqlx-sqlite = { version = "=0.9.0-alpha.1", path = "sqlx-sqlite" }
@@ -214,6 +217,7 @@ default-features = false
 sqlx-core = { workspace = true, features = ["migrate"] }
 sqlx-macros = { workspace = true, optional = true }
 
+sqlx-mssql = { workspace = true, optional = true }
 sqlx-mysql = { workspace = true, optional = true }
 sqlx-postgres = { workspace = true, optional = true }
 sqlx-sqlite = { workspace = true, optional = true }
@@ -454,3 +458,27 @@ required-features = ["postgres"]
 name = "postgres-rustsec"
 path = "tests/postgres/rustsec.rs"
 required-features = ["postgres", "macros", "migrate"]
+
+#
+# MSSQL
+#
+
+[[test]]
+name = "mssql"
+path = "tests/mssql/mssql.rs"
+required-features = ["mssql"]
+
+[[test]]
+name = "mssql-types"
+path = "tests/mssql/types.rs"
+required-features = ["mssql"]
+
+[[test]]
+name = "mssql-describe"
+path = "tests/mssql/describe.rs"
+required-features = ["mssql"]
+
+[[test]]
+name = "mssql-macros"
+path = "tests/mssql/macros.rs"
+required-features = ["mssql", "macros"]

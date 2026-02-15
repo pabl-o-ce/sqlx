@@ -44,6 +44,13 @@ pub use sqlx_core::error::{self, Error, Result};
 #[cfg(feature = "migrate")]
 pub use sqlx_core::migrate;
 
+#[cfg(feature = "mssql")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mssql")))]
+#[doc(inline)]
+pub use sqlx_mssql::{
+    self as mssql, Mssql, MssqlConnection, MssqlExecutor, MssqlPool, MssqlTransaction,
+};
+
 #[cfg(feature = "mysql")]
 #[cfg_attr(docsrs, doc(cfg(feature = "mysql")))]
 #[doc(inline)]

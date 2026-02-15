@@ -1,0 +1,66 @@
+[package]
+name = "sqlx-mssql"
+documentation = "https://docs.rs/sqlx"
+description = "MSSQL driver implementation for SQLx. Not for direct use; see the `sqlx` crate for details."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+json = ["sqlx-core/json", "serde"]
+any = ["sqlx-core/any"]
+offline = ["sqlx-core/offline", "serde"]
+migrate = ["sqlx-core/migrate"]
+
+# Type Integration features
+bigdecimal = ["dep:bigdecimal", "sqlx-core/bigdecimal"]
+chrono = ["dep:chrono", "sqlx-core/chrono"]
+rust_decimal = ["dep:rust_decimal", "sqlx-core/rust_decimal"]
+time = ["dep:time", "sqlx-core/time"]
+uuid = ["dep:uuid", "sqlx-core/uuid"]
+
+[dependencies]
+sqlx-core = { workspace = true }
+
+# TDS protocol driver
+tiberius = { version = "0.12", default-features = false, features = ["tds73"] }
+
+# Futures crates
+futures-core = { version = "0.3.19", default-features = false }
+futures-io = "0.3.24"
+futures-util = { version = "0.3.19", default-features = false, features = ["alloc", "sink", "io"] }
+
+# Runtime bridging
+tokio = { workspace = true, optional = true }
+tokio-util = { version = "0.7", features = ["compat"], optional = true }
+async-std = { workspace = true, optional = true }
+
+# Type Integrations (versions inherited from `[workspace.dependencies]`)
+bigdecimal = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
+rust_decimal = { workspace = true, optional = true }
+time = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+
+# Misc
+bytes = "1.1.0"
+either = "1.6.1"
+log = "0.4.18"
+tracing = { version = "0.1.37", features = ["log"] }
+percent-encoding = "2.1.0"
+atoi = "2.0"
+
+dotenvy.workspace = true
+thiserror.workspace = true
+
+serde = { version = "1.0.144", optional = true }
+
+[dev-dependencies]
+# FIXME: https://github.com/rust-lang/cargo/issues/15622
+sqlx = { path = "..", default-features = false, features = ["mssql"] }
+
+[lints]
+workspace = true

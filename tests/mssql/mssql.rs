@@ -1,7 +1,7 @@
 use futures_util::TryStreamExt;
 use sqlx::mssql::{Mssql, MssqlPoolOptions};
-use sqlx::{Column, Connection, Executor, MssqlConnection, Row, Statement, TypeInfo};
-use sqlx_core::mssql::MssqlRow;
+use sqlx::{Column, Connection, Executor, MssqlConnection, Row, SqlSafeStr, Statement, TypeInfo};
+use sqlx::mssql::MssqlRow;
 use sqlx_test::new;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::time::Duration;
@@ -195,9 +195,9 @@ async fn it_can_work_with_transactions() -> anyhow::Result<()> {
 
     let mut tx = conn.begin().await?;
 
-    sqlx::query("INSERT INTO _sqlx_users_1922 (id) VALUES ($1)")
+    sqlx::query("INSERT INTO _sqlx_users_1922 (id) VALUES (@p1)")
         .bind(10_i32)
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await?;
 
     tx.rollback().await?;
@@ -214,7 +214,7 @@ async fn it_can_work_with_transactions() -> anyhow::Result<()> {
 
     sqlx::query("INSERT INTO _sqlx_users_1922 (id) VALUES (@p1)")
         .bind(10_i32)
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await?;
 
     tx.commit().await?;
@@ -232,7 +232,7 @@ async fn it_can_work_with_transactions() -> anyhow::Result<()> {
 
         sqlx::query("INSERT INTO _sqlx_users_1922 (id) VALUES (@p1)")
             .bind(20_i32)
-            .execute(&mut tx)
+            .execute(&mut *tx)
             .await?;
     }
 
@@ -262,7 +262,7 @@ async fn it_can_work_with_nested_transactions() -> anyhow::Result<()> {
     // insert a user
     sqlx::query("INSERT INTO _sqlx_users_2523 (id) VALUES (@p1)")
         .bind(50_i32)
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await?;
 
     // begin once more
@@ -271,7 +271,7 @@ async fn it_can_work_with_nested_transactions() -> anyhow::Result<()> {
     // insert another user
     sqlx::query("INSERT INTO _sqlx_users_2523 (id) VALUES (@p1)")
         .bind(10_i32)
-        .execute(&mut tx2)
+        .execute(&mut *tx2)
         .await?;
 
     // never mind, rollback
@@ -279,7 +279,7 @@ async fn it_can_work_with_nested_transactions() -> anyhow::Result<()> {
 
     // did we really?
     let (count,): (i32,) = sqlx::query_as("SELECT COUNT(*) FROM _sqlx_users_2523")
-        .fetch_one(&mut tx)
+        .fetch_one(&mut *tx)
         .await?;
 
     assert_eq!(count, 1);
@@ -305,10 +305,10 @@ async fn it_can_prepare_then_execute() -> anyhow::Result<()> {
     let tweet_id: i64 = sqlx::query_scalar(
         "INSERT INTO tweet ( id, text ) OUTPUT INSERTED.id VALUES ( 50, 'Hello, World' )",
     )
-    .fetch_one(&mut tx)
+    .fetch_one(&mut *tx)
     .await?;
 
-    let statement = tx.prepare("SELECT * FROM tweet WHERE id = @p1").await?;
+    let statement = tx.prepare("SELECT * FROM tweet WHERE id = @p1".into_sql_str()).await?;
 
     assert_eq!(statement.column(0).name(), "id");
     assert_eq!(statement.column(1).name(), "text");
@@ -320,7 +320,7 @@ async fn it_can_prepare_then_execute() -> anyhow::Result<()> {
     assert_eq!(statement.column(2).type_info().name(), "TINYINT");
     assert_eq!(statement.column(3).type_info().name(), "BIGINT");
 
-    let row = statement.query().bind(tweet_id).fetch_one(&mut tx).await?;
+    let row = statement.query().bind(tweet_id).fetch_one(&mut *tx).await?;
     let tweet_text: String = row.try_get("text")?;
 
     assert_eq!(tweet_text, "Hello, World");
@@ -359,7 +359,7 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
                     CREATE TABLE #conn_stats(
                         id int primary key,
                         before_acquire_calls int default 0,
-                        after_release_calls int default 0 
+                        after_release_calls int default 0
                     );
                     INSERT INTO #conn_stats(id) VALUES ({});
                     "#,
@@ -367,7 +367,7 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
                     id
                 );
 
-                conn.execute(&statement[..]).await?;
+                conn.execute(sqlx::AssertSqlSafe(statement)).await?;
                 Ok(())
             })
         })
@@ -380,7 +380,7 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
                 // MSSQL doesn't support UPDATE ... RETURNING either
                 sqlx::query(
                     r#"
-                        UPDATE #conn_stats 
+                        UPDATE #conn_stats
                         SET before_acquire_calls = before_acquire_calls + 1
                     "#,
                 )
@@ -404,7 +404,7 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
             Box::pin(async move {
                 sqlx::query(
                     r#"
-                        UPDATE #conn_stats 
+                        UPDATE #conn_stats
                         SET after_release_calls = after_release_calls + 1
                     "#,
                 )
