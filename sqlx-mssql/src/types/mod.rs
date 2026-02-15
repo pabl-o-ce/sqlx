@@ -24,6 +24,8 @@ pub(crate) use sqlx_core::types::*;
 
 mod bool;
 mod bytes;
+#[cfg(feature = "chrono")]
+mod chrono;
 mod float;
 mod int;
 mod str;

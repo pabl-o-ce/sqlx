@@ -53,4 +53,10 @@ pub enum MssqlArgumentValue {
     F64(f64),
     String(String),
     Binary(Vec<u8>),
+    #[cfg(feature = "chrono")]
+    NaiveDateTime(chrono::NaiveDateTime),
+    #[cfg(feature = "chrono")]
+    NaiveDate(chrono::NaiveDate),
+    #[cfg(feature = "chrono")]
+    NaiveTime(chrono::NaiveTime),
 }

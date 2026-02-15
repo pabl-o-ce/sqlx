@@ -4316,6 +4316,7 @@ dependencies = [
  "asynchronous-codec",
  "byteorder",
  "bytes",
+ "chrono",
  "connection-string",
  "encoding_rs",
  "enumflags2",

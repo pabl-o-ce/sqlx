@@ -73,6 +73,18 @@ impl MssqlConnection {
                     MssqlArgumentValue::Binary(v) => {
                         query.bind(v.as_slice());
                     }
+                    #[cfg(feature = "chrono")]
+                    MssqlArgumentValue::NaiveDateTime(v) => {
+                        query.bind(*v);
+                    }
+                    #[cfg(feature = "chrono")]
+                    MssqlArgumentValue::NaiveDate(v) => {
+                        query.bind(*v);
+                    }
+                    #[cfg(feature = "chrono")]
+                    MssqlArgumentValue::NaiveTime(v) => {
+                        query.bind(*v);
+                    }
                 }
             }
 

@@ -25,7 +25,12 @@ impl_type_checking!(
     ParamChecking::Weak,
     feature-types: _info => None,
     datetime-types: {
-        chrono: { },
+        chrono: {
+            sqlx::types::chrono::NaiveTime,
+            sqlx::types::chrono::NaiveDate,
+            sqlx::types::chrono::NaiveDateTime,
+            sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>,
+        },
         time: { },
     },
     numeric-types: {

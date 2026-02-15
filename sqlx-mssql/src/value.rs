@@ -18,6 +18,12 @@ pub(crate) enum MssqlData {
     F64(f64),
     String(String),
     Binary(Vec<u8>),
+    #[cfg(feature = "chrono")]
+    NaiveDateTime(chrono::NaiveDateTime),
+    #[cfg(feature = "chrono")]
+    NaiveDate(chrono::NaiveDate),
+    #[cfg(feature = "chrono")]
+    NaiveTime(chrono::NaiveTime),
 }
 
 /// Implementation of [`Value`] for MSSQL.
@@ -103,7 +109,64 @@ pub(crate) fn column_data_to_mssql_data(data: &tiberius::ColumnData<'_>) -> Mssq
         tiberius::ColumnData::Bit(Some(v)) => MssqlData::Bool(*v),
         tiberius::ColumnData::String(Some(v)) => MssqlData::String(v.to_string()),
         tiberius::ColumnData::Binary(Some(v)) => MssqlData::Binary(v.to_vec()),
+
+        #[cfg(feature = "chrono")]
+        tiberius::ColumnData::DateTime2(Some(dt2)) => {
+            let date = chrono_date_from_days(dt2.date().days() as i64, 1);
+            let ns = dt2.time().increments() as i64
+                * 10i64.pow(9u32.saturating_sub(dt2.time().scale() as u32));
+            let time = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                + chrono::Duration::nanoseconds(ns);
+            MssqlData::NaiveDateTime(chrono::NaiveDateTime::new(date, time))
+        }
+        #[cfg(feature = "chrono")]
+        tiberius::ColumnData::DateTime(Some(dt)) => {
+            let date = chrono_date_from_days(dt.days() as i64, 1900);
+            let ns = dt.seconds_fragments() as i64 * 1_000_000_000i64 / 300;
+            let time = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                + chrono::Duration::nanoseconds(ns);
+            MssqlData::NaiveDateTime(chrono::NaiveDateTime::new(date, time))
+        }
+        #[cfg(feature = "chrono")]
+        tiberius::ColumnData::SmallDateTime(Some(dt)) => {
+            let date = chrono_date_from_days(dt.days() as i64, 1900);
+            let seconds = dt.seconds_fragments() as u32 * 60;
+            let time =
+                chrono::NaiveTime::from_num_seconds_from_midnight_opt(seconds, 0).unwrap();
+            MssqlData::NaiveDateTime(chrono::NaiveDateTime::new(date, time))
+        }
+        #[cfg(feature = "chrono")]
+        tiberius::ColumnData::Date(Some(d)) => {
+            MssqlData::NaiveDate(chrono_date_from_days(d.days() as i64, 1))
+        }
+        #[cfg(feature = "chrono")]
+        tiberius::ColumnData::Time(Some(t)) => {
+            let ns =
+                t.increments() as i64 * 10i64.pow(9u32.saturating_sub(t.scale() as u32));
+            let time = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                + chrono::Duration::nanoseconds(ns);
+            MssqlData::NaiveTime(time)
+        }
+        #[cfg(feature = "chrono")]
+        tiberius::ColumnData::DateTimeOffset(Some(dto)) => {
+            let date = chrono_date_from_days(dto.datetime2().date().days() as i64, 1);
+            let ns = dto.datetime2().time().increments() as i64
+                * 10i64.pow(9u32.saturating_sub(dto.datetime2().time().scale() as u32));
+            let time = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                + chrono::Duration::nanoseconds(ns);
+            // Subtract the offset to convert to UTC
+            let naive = chrono::NaiveDateTime::new(date, time)
+                - chrono::Duration::minutes(dto.offset() as i64);
+            MssqlData::NaiveDateTime(naive)
+        }
+
         // All None variants and unhandled types map to Null
         _ => MssqlData::Null,
     }
+}
+
+/// Convert days since `start_year`-01-01 to a `chrono::NaiveDate`.
+#[cfg(feature = "chrono")]
+fn chrono_date_from_days(days: i64, start_year: i32) -> chrono::NaiveDate {
+    chrono::NaiveDate::from_ymd_opt(start_year, 1, 1).unwrap() + chrono::Duration::days(days)
 }
