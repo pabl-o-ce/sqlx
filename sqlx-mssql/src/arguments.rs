@@ -1,3 +1,5 @@
+use std::fmt::{self, Write};
+
 use crate::database::MssqlArgumentValue;
 use crate::encode::Encode;
 use crate::types::Type;
@@ -43,5 +45,11 @@ impl Arguments for MssqlArguments {
 
     fn len(&self) -> usize {
         self.values.len()
+    }
+
+    fn format_placeholder<W: Write>(&self, writer: &mut W) -> fmt::Result {
+        // MSSQL uses @p1, @p2, ... for parameterized queries.
+        // This is called after the bind is added, so len() is the correct 1-based index.
+        write!(writer, "@p{}", self.values.len())
     }
 }

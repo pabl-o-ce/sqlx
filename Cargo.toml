@@ -509,6 +509,11 @@ path = "tests/mssql/isolation-level.rs"
 required-features = ["mssql"]
 
 [[test]]
+name = "mssql-query-builder"
+path = "tests/mssql/query_builder.rs"
+required-features = ["mssql"]
+
+[[test]]
 name = "mssql-bulk-insert"
 path = "tests/mssql/bulk-insert.rs"
 required-features = ["mssql"]

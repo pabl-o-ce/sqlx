@@ -105,6 +105,32 @@ impl MssqlConnectOptions {
                     options = options.trust_server_certificate_ca(&value);
                 }
 
+                "auth" => {
+                    match &*value {
+                        "sql_server" => {}
+                        #[cfg(all(windows, feature = "winauth"))]
+                        "windows" => {
+                            options.windows_auth = true;
+                        }
+                        #[cfg(any(all(windows, feature = "winauth"), all(unix, feature = "integrated-auth-gssapi")))]
+                        "integrated" => {
+                            options.integrated_auth = true;
+                        }
+                        "aad_token" => {
+                            // token value is set via the separate `token` parameter
+                        }
+                        _ => {
+                            return Err(Error::Configuration(
+                                format!("unknown auth value: {value}").into(),
+                            ))
+                        }
+                    }
+                }
+
+                "token" => {
+                    options.aad_token = Some(value.into_owned());
+                }
+
                 _ => {}
             }
         }
@@ -143,6 +169,24 @@ impl MssqlConnectOptions {
         if let Some(ca_path) = &self.trust_server_certificate_ca {
             url.query_pairs_mut()
                 .append_pair("trust_server_certificate_ca", ca_path);
+        }
+
+        if let Some(token) = &self.aad_token {
+            url.query_pairs_mut()
+                .append_pair("auth", "aad_token")
+                .append_pair("token", token);
+        } else {
+            #[cfg(any(all(windows, feature = "winauth"), all(unix, feature = "integrated-auth-gssapi")))]
+            if self.integrated_auth {
+                url.query_pairs_mut()
+                    .append_pair("auth", "integrated");
+            }
+
+            #[cfg(all(windows, feature = "winauth"))]
+            if self.windows_auth && !self.integrated_auth {
+                url.query_pairs_mut()
+                    .append_pair("auth", "windows");
+            }
         }
 
         url
@@ -291,4 +335,35 @@ fn it_roundtrips_trust_cert_ca_in_url() {
     let built = opts.build_url();
     let opts2 = MssqlConnectOptions::parse_from_url(&built).unwrap();
     assert_eq!(opts2.trust_server_certificate_ca, Some("/etc/ssl/ca.pem".into()));
+}
+
+#[test]
+fn it_parses_aad_token_auth() {
+    let url = "mssql://sa@localhost/master?auth=aad_token&token=my-bearer-token";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert_eq!(opts.aad_token, Some("my-bearer-token".into()));
+}
+
+#[test]
+fn it_roundtrips_aad_token_in_url() {
+    let opts = MssqlConnectOptions::new()
+        .host("localhost")
+        .username("sa")
+        .aad_token("my-bearer-token");
+    let built = opts.build_url();
+    let opts2 = MssqlConnectOptions::parse_from_url(&built).unwrap();
+    assert_eq!(opts2.aad_token, Some("my-bearer-token".into()));
+}
+
+#[test]
+fn it_parses_sql_server_auth_explicitly() {
+    let url = "mssql://sa:password@localhost/master?auth=sql_server";
+    let opts = MssqlConnectOptions::from_str(url).unwrap();
+    assert_eq!(opts.aad_token, None);
+}
+
+#[test]
+fn it_rejects_invalid_auth() {
+    let url = "mssql://sa:password@localhost/master?auth=bogus";
+    assert!(MssqlConnectOptions::from_str(url).is_err());
 }

@@ -28,6 +28,8 @@ use ssl_mode::MssqlSslMode;
 /// | `statement-cache-capacity` | `100` | The maximum number of prepared statements stored in the cache. |
 /// | `app_name` | `sqlx` | The application name sent to the server. |
 /// | `instance` | `None` | The SQL Server instance name. |
+/// | `auth` | `sql_server` | Authentication method: `sql_server`, `windows` (cfg-gated), `integrated` (cfg-gated), `aad_token`. |
+/// | `token` | (none) | Azure AD bearer token (used when `auth=aad_token`). |
 ///
 /// # Example
 ///
@@ -64,6 +66,15 @@ pub struct MssqlConnectOptions {
     pub(crate) statement_cache_capacity: usize,
     pub(crate) app_name: String,
     pub(crate) log_settings: LogSettings,
+    /// When `true`, use Windows (NTLM) authentication instead of SQL Server auth.
+    /// The username can use `domain\user` syntax which tiberius parses internally.
+    #[cfg(all(windows, feature = "winauth"))]
+    pub(crate) windows_auth: bool,
+    /// When `true`, use integrated authentication (SSPI on Windows / Kerberos on Unix).
+    #[cfg(any(all(windows, feature = "winauth"), all(unix, feature = "integrated-auth-gssapi")))]
+    pub(crate) integrated_auth: bool,
+    /// Azure AD bearer token for AAD authentication.
+    pub(crate) aad_token: Option<String>,
 }
 
 impl Default for MssqlConnectOptions {
@@ -89,6 +100,11 @@ impl MssqlConnectOptions {
             statement_cache_capacity: 100,
             app_name: String::from("sqlx"),
             log_settings: Default::default(),
+            #[cfg(all(windows, feature = "winauth"))]
+            windows_auth: false,
+            #[cfg(any(all(windows, feature = "winauth"), all(unix, feature = "integrated-auth-gssapi")))]
+            integrated_auth: false,
+            aad_token: None,
         }
     }
 
@@ -192,6 +208,31 @@ impl MssqlConnectOptions {
         self
     }
 
+    /// Sets whether to use Windows (NTLM) authentication.
+    ///
+    /// When enabled, the username can use `domain\user` syntax
+    /// which tiberius parses internally.
+    #[cfg(all(windows, feature = "winauth"))]
+    pub fn windows_auth(mut self, enabled: bool) -> Self {
+        self.windows_auth = enabled;
+        self
+    }
+
+    /// Sets whether to use integrated authentication (SSPI on Windows / Kerberos on Unix).
+    #[cfg(any(all(windows, feature = "winauth"), all(unix, feature = "integrated-auth-gssapi")))]
+    pub fn integrated_auth(mut self, enabled: bool) -> Self {
+        self.integrated_auth = enabled;
+        self
+    }
+
+    /// Sets an Azure AD bearer token for authentication.
+    ///
+    /// When set, AAD token authentication takes precedence over other auth methods.
+    pub fn aad_token(mut self, token: &str) -> Self {
+        self.aad_token = Some(token.to_owned());
+        self
+    }
+
     /// Get the current host.
     pub fn get_host(&self) -> &str {
         &self.host
@@ -228,10 +269,34 @@ impl MssqlConnectOptions {
             config.instance_name(instance);
         }
 
-        config.authentication(tiberius::AuthMethod::sql_server(
-            &self.username,
-            self.password.as_deref().unwrap_or(""),
-        ));
+        if let Some(token) = &self.aad_token {
+            config.authentication(tiberius::AuthMethod::aad_token(token));
+        } else {
+            #[allow(unused_mut)]
+            let mut handled = false;
+
+            #[cfg(any(all(windows, feature = "winauth"), all(unix, feature = "integrated-auth-gssapi")))]
+            if !handled && self.integrated_auth {
+                config.authentication(tiberius::AuthMethod::Integrated);
+                handled = true;
+            }
+
+            #[cfg(all(windows, feature = "winauth"))]
+            if !handled && self.windows_auth {
+                config.authentication(tiberius::AuthMethod::windows(
+                    &self.username,
+                    self.password.as_deref().unwrap_or(""),
+                ));
+                handled = true;
+            }
+
+            if !handled {
+                config.authentication(tiberius::AuthMethod::sql_server(
+                    &self.username,
+                    self.password.as_deref().unwrap_or(""),
+                ));
+            }
+        }
 
         if let Some(ca_path) = &self.trust_server_certificate_ca {
             // trust_cert_ca and trust_cert are mutually exclusive in tiberius

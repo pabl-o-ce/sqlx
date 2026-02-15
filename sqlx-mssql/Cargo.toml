@@ -15,6 +15,10 @@ any = ["sqlx-core/any"]
 offline = ["sqlx-core/offline", "serde"]
 migrate = ["sqlx-core/migrate"]
 
+# Authentication features
+winauth = ["tiberius/winauth"]
+integrated-auth-gssapi = ["tiberius/integrated-auth-gssapi"]
+
 # Type Integration features
 bigdecimal = ["dep:bigdecimal", "sqlx-core/bigdecimal", "tiberius/bigdecimal"]
 chrono = ["dep:chrono", "sqlx-core/chrono", "tiberius/chrono"]

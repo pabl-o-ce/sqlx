@@ -52,3 +52,4 @@ mod str;
 mod time;
 #[cfg(feature = "uuid")]
 mod uuid;
+pub mod xml;

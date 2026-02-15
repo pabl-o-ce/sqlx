@@ -54,6 +54,7 @@ pub use row::MssqlRow;
 pub use statement::MssqlStatement;
 pub use transaction::MssqlTransactionManager;
 pub use type_info::MssqlTypeInfo;
+pub use types::xml::MssqlXml;
 pub use value::{MssqlValue, MssqlValueRef};
 
 // Re-export tiberius types needed for bulk insert row construction.
