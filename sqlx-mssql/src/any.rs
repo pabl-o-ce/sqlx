@@ -167,6 +167,11 @@ impl<'a> TryFrom<&'a MssqlTypeInfo> for AnyTypeInfo {
                 "REAL" => AnyTypeInfoKind::Real,
                 "FLOAT" => AnyTypeInfoKind::Double,
                 "VARBINARY" | "BINARY" | "IMAGE" => AnyTypeInfoKind::Blob,
+                "NULL" => AnyTypeInfoKind::Null,
+                "BIT" => AnyTypeInfoKind::Bool,
+                "MONEY" => AnyTypeInfoKind::Double,
+                "SMALLMONEY" => AnyTypeInfoKind::Real,
+                "DECIMAL" | "NUMERIC" => AnyTypeInfoKind::Text,
                 "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "XML" => {
                     AnyTypeInfoKind::Text
                 }
