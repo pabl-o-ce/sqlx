@@ -12,7 +12,7 @@ impl Type<Mssql> for bool {
     }
 
     fn compatible(ty: &MssqlTypeInfo) -> bool {
-        matches!(ty.name.as_str(), "BIT" | "TINYINT" | "INT" | "SMALLINT" | "BIGINT")
+        matches!(ty.base_name(), "BIT" | "TINYINT" | "INT" | "SMALLINT" | "BIGINT")
     }
 }
 

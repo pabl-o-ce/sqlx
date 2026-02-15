@@ -11,7 +11,7 @@ use crate::{Mssql, MssqlTypeInfo, MssqlValueRef};
 
 fn str_compatible(ty: &MssqlTypeInfo) -> bool {
     matches!(
-        ty.name.as_str(),
+        ty.base_name(),
         "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "XML"
     )
 }

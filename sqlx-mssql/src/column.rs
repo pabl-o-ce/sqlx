@@ -8,6 +8,7 @@ pub struct MssqlColumn {
     pub(crate) ordinal: usize,
     pub(crate) name: UStr,
     pub(crate) type_info: MssqlTypeInfo,
+    pub(crate) origin: ColumnOrigin,
 }
 
 impl Column for MssqlColumn {
@@ -26,7 +27,6 @@ impl Column for MssqlColumn {
     }
 
     fn origin(&self) -> ColumnOrigin {
-        // tiberius doesn't expose table origin information
-        ColumnOrigin::Expression
+        self.origin.clone()
     }
 }

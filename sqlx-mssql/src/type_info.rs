@@ -13,6 +13,13 @@ impl MssqlTypeInfo {
     pub(crate) fn new(name: impl Into<String>) -> Self {
         Self { name: name.into() }
     }
+
+    /// Return the base type name without any parenthesized precision/scale.
+    ///
+    /// e.g. `"DECIMAL(10,2)"` → `"DECIMAL"`, `"NVARCHAR(4000)"` → `"NVARCHAR"`
+    pub(crate) fn base_name(&self) -> &str {
+        self.name.split('(').next().unwrap_or(&self.name).trim()
+    }
 }
 
 impl Display for MssqlTypeInfo {

@@ -159,7 +159,7 @@ impl<'a> TryFrom<&'a MssqlTypeInfo> for AnyTypeInfo {
 
     fn try_from(type_info: &'a MssqlTypeInfo) -> Result<Self, Self::Error> {
         Ok(AnyTypeInfo {
-            kind: match type_info.name.as_str() {
+            kind: match type_info.base_name() {
                 "TINYINT" => AnyTypeInfoKind::SmallInt,
                 "SMALLINT" => AnyTypeInfoKind::SmallInt,
                 "INT" => AnyTypeInfoKind::Integer,
@@ -175,6 +175,9 @@ impl<'a> TryFrom<&'a MssqlTypeInfo> for AnyTypeInfo {
                 "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "XML" => {
                     AnyTypeInfoKind::Text
                 }
+                "UNIQUEIDENTIFIER" => AnyTypeInfoKind::Text,
+                "DATE" | "TIME" | "DATETIME" | "DATETIME2" | "SMALLDATETIME"
+                | "DATETIMEOFFSET" => AnyTypeInfoKind::Text,
                 _ => {
                     return Err(sqlx_core::Error::AnyDriverError(
                         format!("Any driver does not support MSSQL type {type_info:?}").into(),

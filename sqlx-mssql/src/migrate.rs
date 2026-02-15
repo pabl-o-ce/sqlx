@@ -187,39 +187,22 @@ CREATE TABLE {table_name} (
         migration: &'e Migration,
     ) -> BoxFuture<'e, Result<Duration, MigrateError>> {
         Box::pin(async move {
-            let mut tx = self.begin().await?;
             let start = Instant::now();
 
-            let _ = query(AssertSqlSafe(format!(
-                r#"
-    INSERT INTO {table_name} ( version, description, success, checksum, execution_time )
-    VALUES ( @p1, @p2, 0, @p3, -1 )
-                "#
-            )))
-            .bind(migration.version)
-            .bind(&*migration.description)
-            .bind(&*migration.checksum)
-            .execute(&mut *tx)
-            .await?;
+            if migration.no_tx {
+                execute_migration(self, table_name, migration).await?;
+            } else {
+                // Use a single transaction for the actual migration script and the essential
+                // bookkeeping so we never execute migrations twice.
+                // See https://github.com/launchbadge/sqlx/issues/1966.
+                let mut tx = self.begin().await?;
+                execute_migration(&mut tx, table_name, migration).await?;
+                tx.commit().await?;
+            }
 
-            let _ = tx
-                .execute(migration.sql.clone())
-                .await
-                .map_err(|e| MigrateError::ExecuteMigration(e, migration.version))?;
-
-            let _ = query(AssertSqlSafe(format!(
-                r#"
-    UPDATE {table_name}
-    SET success = 1
-    WHERE version = @p1
-                "#
-            )))
-            .bind(migration.version)
-            .execute(&mut *tx)
-            .await?;
-
-            tx.commit().await?;
-
+            // Update `execution_time`.
+            // NOTE: The process may disconnect/die at this point, so the elapsed time value
+            // might be lost. We accept this small risk since this value is not super important.
             let elapsed = start.elapsed();
 
             #[allow(clippy::cast_possible_truncation)]
@@ -245,34 +228,64 @@ CREATE TABLE {table_name} (
         migration: &'e Migration,
     ) -> BoxFuture<'e, Result<Duration, MigrateError>> {
         Box::pin(async move {
-            let mut tx = self.begin().await?;
             let start = Instant::now();
 
-            let _ = query(AssertSqlSafe(format!(
-                r#"
-    UPDATE {table_name}
-    SET success = 0
-    WHERE version = @p1
-                "#
-            )))
-            .bind(migration.version)
-            .execute(&mut *tx)
-            .await?;
-
-            tx.execute(migration.sql.clone()).await?;
-
-            let _ = query(AssertSqlSafe(format!(
-                r#"DELETE FROM {table_name} WHERE version = @p1"#
-            )))
-            .bind(migration.version)
-            .execute(&mut *tx)
-            .await?;
-
-            tx.commit().await?;
+            if migration.no_tx {
+                revert_migration(self, table_name, migration).await?;
+            } else {
+                let mut tx = self.begin().await?;
+                revert_migration(&mut tx, table_name, migration).await?;
+                tx.commit().await?;
+            }
 
             let elapsed = start.elapsed();
 
             Ok(elapsed)
         })
     }
+}
+
+async fn execute_migration(
+    conn: &mut MssqlConnection,
+    table_name: &str,
+    migration: &Migration,
+) -> Result<(), MigrateError> {
+    let _ = conn
+        .execute(migration.sql.clone())
+        .await
+        .map_err(|e| MigrateError::ExecuteMigration(e, migration.version))?;
+
+    let _ = query(AssertSqlSafe(format!(
+        r#"
+    INSERT INTO {table_name} ( version, description, success, checksum, execution_time )
+    VALUES ( @p1, @p2, 1, @p3, -1 )
+        "#
+    )))
+    .bind(migration.version)
+    .bind(&*migration.description)
+    .bind(&*migration.checksum)
+    .execute(conn)
+    .await?;
+
+    Ok(())
+}
+
+async fn revert_migration(
+    conn: &mut MssqlConnection,
+    table_name: &str,
+    migration: &Migration,
+) -> Result<(), MigrateError> {
+    let _ = conn
+        .execute(migration.sql.clone())
+        .await
+        .map_err(|e| MigrateError::ExecuteMigration(e, migration.version))?;
+
+    let _ = query(AssertSqlSafe(format!(
+        r#"DELETE FROM {table_name} WHERE version = @p1"#
+    )))
+    .bind(migration.version)
+    .execute(conn)
+    .await?;
+
+    Ok(())
 }

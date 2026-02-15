@@ -17,7 +17,7 @@ impl Type<Mssql> for NaiveDateTime {
 
     fn compatible(ty: &MssqlTypeInfo) -> bool {
         matches!(
-            ty.name.as_str(),
+            ty.base_name(),
             "DATETIME2" | "DATETIME" | "SMALLDATETIME"
         )
     }
@@ -110,7 +110,7 @@ impl Type<Mssql> for DateTime<Utc> {
 
     fn compatible(ty: &MssqlTypeInfo) -> bool {
         matches!(
-            ty.name.as_str(),
+            ty.base_name(),
             "DATETIME2" | "DATETIMEOFFSET"
         )
     }

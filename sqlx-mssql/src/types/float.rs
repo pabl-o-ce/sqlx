@@ -7,7 +7,7 @@ use crate::value::MssqlData;
 use crate::{Mssql, MssqlTypeInfo, MssqlValueRef};
 
 fn real_compatible(ty: &MssqlTypeInfo) -> bool {
-    matches!(ty.name.as_str(), "REAL" | "FLOAT" | "MONEY" | "SMALLMONEY")
+    matches!(ty.base_name(), "REAL" | "FLOAT" | "MONEY" | "SMALLMONEY")
 }
 
 impl Type<Mssql> for f32 {

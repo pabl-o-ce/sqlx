@@ -14,6 +14,7 @@ use either::Either;
 use futures_core::future::BoxFuture;
 use futures_core::stream::BoxStream;
 use futures_util::TryStreamExt;
+use sqlx_core::column::{ColumnOrigin, TableColumn};
 use sqlx_core::sql_str::{AssertSqlSafe, SqlSafeStr, SqlStr};
 use std::sync::Arc;
 
@@ -250,6 +251,7 @@ async fn collect_results<'a>(
                             ordinal,
                             name,
                             type_info,
+                            origin: ColumnOrigin::Unknown,
                         }
                     })
                     .collect();
@@ -370,9 +372,25 @@ impl<'c> Executor<'c> for &'c mut MssqlConnection {
             for (ordinal, row) in rows.iter().enumerate() {
                 let name: &str = row.get("name").unwrap_or("");
                 let type_name: &str = row.get("system_type_name").unwrap_or("UNKNOWN");
-                // Extract the base type name (before any parenthesized length/precision)
-                let base_type = type_name.split('(').next().unwrap_or(type_name).trim();
-                let type_info = MssqlTypeInfo::new(base_type.to_uppercase());
+                let type_info = MssqlTypeInfo::new(type_name.to_uppercase());
+
+                let source_table: Option<&str> = row.get("source_table");
+                let source_schema: Option<&str> = row.get("source_schema");
+                let source_column: Option<&str> = row.get("source_column");
+
+                let origin = match (source_table, source_column) {
+                    (Some(table), Some(col)) if !table.is_empty() && !col.is_empty() => {
+                        let table_str = match source_schema {
+                            Some(s) if !s.is_empty() => format!("{s}.{table}"),
+                            _ => table.to_string(),
+                        };
+                        ColumnOrigin::Table(TableColumn {
+                            table: table_str.into(),
+                            name: col.into(),
+                        })
+                    }
+                    _ => ColumnOrigin::Expression,
+                };
 
                 let ustr_name = UStr::new(name);
                 column_names.insert(ustr_name.clone(), ordinal);
@@ -380,6 +398,7 @@ impl<'c> Executor<'c> for &'c mut MssqlConnection {
                     ordinal,
                     name: ustr_name,
                     type_info,
+                    origin,
                 });
             }
 
@@ -427,9 +446,26 @@ impl<'c> Executor<'c> for &'c mut MssqlConnection {
             for (ordinal, row) in rows.iter().enumerate() {
                 let name: &str = row.get("name").unwrap_or("");
                 let type_name: &str = row.get("system_type_name").unwrap_or("UNKNOWN");
-                let base_type = type_name.split('(').next().unwrap_or(type_name).trim();
-                let type_info = MssqlTypeInfo::new(base_type.to_uppercase());
+                let type_info = MssqlTypeInfo::new(type_name.to_uppercase());
                 let is_nullable: Option<bool> = row.get("is_nullable");
+
+                let source_table: Option<&str> = row.get("source_table");
+                let source_schema: Option<&str> = row.get("source_schema");
+                let source_column: Option<&str> = row.get("source_column");
+
+                let origin = match (source_table, source_column) {
+                    (Some(table), Some(col)) if !table.is_empty() && !col.is_empty() => {
+                        let table_str = match source_schema {
+                            Some(s) if !s.is_empty() => format!("{s}.{table}"),
+                            _ => table.to_string(),
+                        };
+                        ColumnOrigin::Table(TableColumn {
+                            table: table_str.into(),
+                            name: col.into(),
+                        })
+                    }
+                    _ => ColumnOrigin::Expression,
+                };
 
                 let ustr_name = UStr::new(name);
                 column_names.insert(ustr_name.clone(), ordinal);
@@ -437,6 +473,7 @@ impl<'c> Executor<'c> for &'c mut MssqlConnection {
                     ordinal,
                     name: ustr_name,
                     type_info,
+                    origin,
                 });
                 nullable.push(is_nullable);
             }

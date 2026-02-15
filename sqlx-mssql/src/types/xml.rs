@@ -33,7 +33,7 @@ impl Type<Mssql> for MssqlXml {
 
     fn compatible(ty: &MssqlTypeInfo) -> bool {
         matches!(
-            ty.name.as_str(),
+            ty.base_name(),
             "XML" | "NVARCHAR" | "VARCHAR" | "NTEXT" | "TEXT"
         )
     }

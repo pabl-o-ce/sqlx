@@ -8,7 +8,7 @@ use crate::{Mssql, MssqlTypeInfo, MssqlValueRef};
 
 fn int_compatible(ty: &MssqlTypeInfo) -> bool {
     matches!(
-        ty.name.as_str(),
+        ty.base_name(),
         "TINYINT" | "SMALLINT" | "INT" | "BIGINT"
     )
 }
