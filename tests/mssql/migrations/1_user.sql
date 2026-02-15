@@ -1,0 +1,4 @@
+CREATE TABLE [user] (
+    user_id  INT NOT NULL IDENTITY(1,1) PRIMARY KEY,
+    username NVARCHAR(16) NOT NULL UNIQUE
+);

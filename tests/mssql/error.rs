@@ -1,0 +1,80 @@
+use sqlx::error::ErrorKind;
+use sqlx::mssql::Mssql;
+use sqlx::Connection;
+use sqlx_test::new;
+
+#[sqlx_macros::test]
+async fn it_fails_with_unique_violation() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+    let mut tx = conn.begin().await?;
+
+    sqlx::query("INSERT INTO tweet(id, text, owner_id) VALUES (1, 'Foo', 1)")
+        .execute(&mut *tx)
+        .await?;
+
+    let res: Result<_, sqlx::Error> =
+        sqlx::query("INSERT INTO tweet(id, text, owner_id) VALUES (1, 'Bar', 1)")
+            .execute(&mut *tx)
+            .await;
+    let err = res.unwrap_err();
+
+    let err = err.into_database_error().unwrap();
+
+    assert_eq!(err.kind(), ErrorKind::UniqueViolation);
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_fails_with_foreign_key_violation() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+    let mut tx = conn.begin().await?;
+
+    let res: Result<_, sqlx::Error> =
+        sqlx::query("INSERT INTO tweet_reply (tweet_id, text) VALUES (999, 'Reply!')")
+            .execute(&mut *tx)
+            .await;
+    let err = res.unwrap_err();
+
+    let err = err.into_database_error().unwrap();
+
+    assert_eq!(err.kind(), ErrorKind::ForeignKeyViolation);
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_fails_with_not_null_violation() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+    let mut tx = conn.begin().await?;
+
+    let res: Result<_, sqlx::Error> =
+        sqlx::query("INSERT INTO tweet (id, text) VALUES (1, NULL)")
+            .execute(&mut *tx)
+            .await;
+    let err = res.unwrap_err();
+
+    let err = err.into_database_error().unwrap();
+
+    assert_eq!(err.kind(), ErrorKind::NotNullViolation);
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_fails_with_check_violation() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+    let mut tx = conn.begin().await?;
+
+    let res: Result<_, sqlx::Error> =
+        sqlx::query("INSERT INTO products (product_no, name, price) VALUES (1, 'Product 1', 0)")
+            .execute(&mut *tx)
+            .await;
+    let err = res.unwrap_err();
+
+    let err = err.into_database_error().unwrap();
+
+    assert_eq!(err.kind(), ErrorKind::CheckViolation);
+
+    Ok(())
+}

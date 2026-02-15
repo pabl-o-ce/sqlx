@@ -482,3 +482,18 @@ required-features = ["mssql"]
 name = "mssql-macros"
 path = "tests/mssql/macros.rs"
 required-features = ["mssql", "macros"]
+
+[[test]]
+name = "mssql-derives"
+path = "tests/mssql/derives.rs"
+required-features = ["mssql", "derive"]
+
+[[test]]
+name = "mssql-error"
+path = "tests/mssql/error.rs"
+required-features = ["mssql"]
+
+[[test]]
+name = "mssql-test-attr"
+path = "tests/mssql/test-attr.rs"
+required-features = ["mssql", "macros", "migrate"]
