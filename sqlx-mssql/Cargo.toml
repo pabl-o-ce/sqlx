@@ -16,10 +16,10 @@ offline = ["sqlx-core/offline", "serde"]
 migrate = ["sqlx-core/migrate"]
 
 # Type Integration features
-bigdecimal = ["dep:bigdecimal", "sqlx-core/bigdecimal"]
+bigdecimal = ["dep:bigdecimal", "sqlx-core/bigdecimal", "tiberius/bigdecimal"]
 chrono = ["dep:chrono", "sqlx-core/chrono", "tiberius/chrono"]
 rust_decimal = ["dep:rust_decimal", "sqlx-core/rust_decimal", "tiberius/rust_decimal"]
-time = ["dep:time", "sqlx-core/time"]
+time = ["dep:time", "sqlx-core/time", "tiberius/time"]
 uuid = ["dep:uuid", "sqlx-core/uuid"]
 
 [dependencies]

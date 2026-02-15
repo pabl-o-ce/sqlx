@@ -21,6 +21,12 @@
 //! |---------------------------------------|------------------------------------------------------|
 //! | `uuid::Uuid`                          | UNIQUEIDENTIFIER                                     |
 //! | `rust_decimal::Decimal`               | DECIMAL, NUMERIC, MONEY                              |
+//! | `bigdecimal::BigDecimal`              | DECIMAL, NUMERIC, MONEY                              |
+//! | `time::Date`                          | DATE                                                 |
+//! | `time::Time`                          | TIME                                                 |
+//! | `time::PrimitiveDateTime`             | DATETIME2, DATETIME, SMALLDATETIME                   |
+//! | `time::OffsetDateTime`                | DATETIMEOFFSET, DATETIME2                            |
+//! | `serde_json::Value` (`Json<T>`)       | NVARCHAR (JSON stored as string)                     |
 //!
 //! # Nullable
 //!
@@ -29,14 +35,20 @@
 
 pub(crate) use sqlx_core::types::*;
 
+#[cfg(feature = "bigdecimal")]
+mod bigdecimal;
 mod bool;
 mod bytes;
 #[cfg(feature = "chrono")]
 mod chrono;
 mod float;
 mod int;
+#[cfg(feature = "json")]
+mod json;
 #[cfg(feature = "rust_decimal")]
 mod rust_decimal;
 mod str;
+#[cfg(feature = "time")]
+mod time;
 #[cfg(feature = "uuid")]
 mod uuid;

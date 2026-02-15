@@ -28,6 +28,16 @@ pub(crate) enum MssqlData {
     Uuid(uuid::Uuid),
     #[cfg(feature = "rust_decimal")]
     Decimal(rust_decimal::Decimal),
+    #[cfg(feature = "time")]
+    TimeDate(time::Date),
+    #[cfg(feature = "time")]
+    TimeTime(time::Time),
+    #[cfg(feature = "time")]
+    TimePrimitiveDateTime(time::PrimitiveDateTime),
+    #[cfg(feature = "time")]
+    TimeOffsetDateTime(time::OffsetDateTime),
+    #[cfg(feature = "bigdecimal")]
+    BigDecimal(bigdecimal::BigDecimal),
 }
 
 /// Implementation of [`Value`] for MSSQL.
@@ -175,9 +185,83 @@ pub(crate) fn column_data_to_mssql_data(data: &tiberius::ColumnData<'_>) -> Mssq
             ))
         }
 
+        #[cfg(all(feature = "time", not(feature = "chrono")))]
+        tiberius::ColumnData::Date(Some(d)) => {
+            MssqlData::TimeDate(time_date_from_days(d.days() as u64, 1))
+        }
+        #[cfg(all(feature = "time", not(feature = "chrono")))]
+        tiberius::ColumnData::Time(Some(t)) => {
+            let ns = t.increments() as u64
+                * 10u64.pow(9u32.saturating_sub(t.scale() as u32));
+            MssqlData::TimeTime(time_from_sec_fragments(ns))
+        }
+        #[cfg(all(feature = "time", not(feature = "chrono")))]
+        tiberius::ColumnData::DateTime2(Some(dt2)) => {
+            let date = time_date_from_days(dt2.date().days() as u64, 1);
+            let ns = dt2.time().increments() as u64
+                * 10u64.pow(9u32.saturating_sub(dt2.time().scale() as u32));
+            let time = time_from_sec_fragments(ns);
+            MssqlData::TimePrimitiveDateTime(time::PrimitiveDateTime::new(date, time))
+        }
+        #[cfg(all(feature = "time", not(feature = "chrono")))]
+        tiberius::ColumnData::DateTime(Some(dt)) => {
+            let date = time_date_from_days(dt.days() as u64, 1900);
+            let ns = dt.seconds_fragments() as u64 * 1_000_000_000u64 / 300;
+            let time = time_from_sec_fragments(ns);
+            MssqlData::TimePrimitiveDateTime(time::PrimitiveDateTime::new(date, time))
+        }
+        #[cfg(all(feature = "time", not(feature = "chrono")))]
+        tiberius::ColumnData::SmallDateTime(Some(dt)) => {
+            let date = time_date_from_days(dt.days() as u64, 1900);
+            let seconds = dt.seconds_fragments() as u64 * 60;
+            let time = time_from_sec_fragments(seconds * 1_000_000_000);
+            MssqlData::TimePrimitiveDateTime(time::PrimitiveDateTime::new(date, time))
+        }
+        #[cfg(all(feature = "time", not(feature = "chrono")))]
+        tiberius::ColumnData::DateTimeOffset(Some(dto)) => {
+            let date = time_date_from_days(dto.datetime2().date().days() as u64, 1);
+            let ns = dto.datetime2().time().increments() as u64
+                * 10u64.pow(9u32.saturating_sub(dto.datetime2().time().scale() as u32));
+            let time = time_from_sec_fragments(ns);
+            let naive = time::PrimitiveDateTime::new(date, time);
+            let offset = time::UtcOffset::from_whole_seconds(dto.offset() as i32 * 60)
+                .expect("valid UTC offset from tiberius");
+            MssqlData::TimeOffsetDateTime(naive.assume_offset(offset))
+        }
+
+        #[cfg(all(feature = "bigdecimal", not(feature = "rust_decimal")))]
+        tiberius::ColumnData::Numeric(Some(n)) => {
+            use bigdecimal::num_bigint::BigInt;
+            MssqlData::BigDecimal(bigdecimal::BigDecimal::new(
+                BigInt::from(n.value()),
+                n.scale() as i64,
+            ))
+        }
+
         // All None variants and unhandled types map to Null
         _ => MssqlData::Null,
     }
+}
+
+/// Convert days since `start_year`-01-01 to a `time::Date`.
+#[cfg(feature = "time")]
+fn time_date_from_days(days: u64, start_year: i32) -> time::Date {
+    let start = time::Date::from_ordinal_date(start_year, 1).expect("valid start date");
+    start
+        .checked_add(time::Duration::days(days as i64))
+        .expect("valid date from days offset")
+}
+
+/// Convert nanoseconds-since-midnight to a `time::Time`.
+#[cfg(feature = "time")]
+fn time_from_sec_fragments(nanoseconds: u64) -> time::Time {
+    let hours = (nanoseconds / 3_600_000_000_000) as u8;
+    let remaining = nanoseconds % 3_600_000_000_000;
+    let minutes = (remaining / 60_000_000_000) as u8;
+    let remaining = remaining % 60_000_000_000;
+    let seconds = (remaining / 1_000_000_000) as u8;
+    let nanos = (remaining % 1_000_000_000) as u32;
+    time::Time::from_hms_nano(hours, minutes, seconds, nanos).expect("valid time")
 }
 
 /// Convert days since `start_year`-01-01 to a `chrono::NaiveDate`.

@@ -24,6 +24,9 @@ impl_type_checking!(
 
         #[cfg(feature = "uuid")]
         sqlx::types::Uuid,
+
+        #[cfg(feature = "json")]
+        sqlx::types::JsonValue,
     },
     ParamChecking::Weak,
     feature-types: _info => None,
@@ -34,10 +37,17 @@ impl_type_checking!(
             sqlx::types::chrono::NaiveDateTime,
             sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>,
         },
-        time: { },
+        time: {
+            sqlx::types::time::Time,
+            sqlx::types::time::Date,
+            sqlx::types::time::PrimitiveDateTime,
+            sqlx::types::time::OffsetDateTime,
+        },
     },
     numeric-types: {
-        bigdecimal: { },
+        bigdecimal: {
+            sqlx::types::BigDecimal,
+        },
         rust_decimal: {
             sqlx::types::Decimal,
         },

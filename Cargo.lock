@@ -539,6 +539,17 @@ checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
 
 [[package]]
 name = "bigdecimal"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6773ddc0eafc0e509fb60e48dff7f450f8e674a0686ae8605e8d9901bd5eefa"
+dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "bigdecimal"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a22f228ab7a1b23027ccc6c350b72868017af7ea8356fbdf19f8d991c690013"
@@ -3619,7 +3630,7 @@ dependencies = [
  "async-std",
  "async-task",
  "base64 0.22.1",
- "bigdecimal",
+ "bigdecimal 0.4.8",
  "bit-vec",
  "bstr",
  "bytes",
@@ -3952,7 +3963,7 @@ version = "0.9.0-alpha.1"
 dependencies = [
  "async-std",
  "atoi",
- "bigdecimal",
+ "bigdecimal 0.4.8",
  "bytes",
  "chrono",
  "dotenvy",
@@ -3981,7 +3992,7 @@ version = "0.9.0-alpha.1"
 dependencies = [
  "atoi",
  "base64 0.22.1",
- "bigdecimal",
+ "bigdecimal 0.4.8",
  "bitflags 2.9.1",
  "byteorder",
  "bytes",
@@ -4025,7 +4036,7 @@ version = "0.9.0-alpha.1"
 dependencies = [
  "atoi",
  "base64 0.22.1",
- "bigdecimal",
+ "bigdecimal 0.4.8",
  "bit-vec",
  "bitflags 2.9.1",
  "byteorder",
@@ -4314,6 +4325,7 @@ checksum = "a1446cb4198848d1562301a3340424b4f425ef79f35ef9ee034769a9dd92c10d"
 dependencies = [
  "async-trait",
  "asynchronous-codec",
+ "bigdecimal 0.3.1",
  "byteorder",
  "bytes",
  "chrono",
@@ -4327,6 +4339,7 @@ dependencies = [
  "pretty-hex",
  "rust_decimal",
  "thiserror 1.0.69",
+ "time",
  "tracing",
  "uuid",
 ]

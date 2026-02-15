@@ -63,4 +63,14 @@ pub enum MssqlArgumentValue {
     Uuid(uuid::Uuid),
     #[cfg(feature = "rust_decimal")]
     Decimal(rust_decimal::Decimal),
+    #[cfg(feature = "time")]
+    TimeDate(time::Date),
+    #[cfg(feature = "time")]
+    TimeTime(time::Time),
+    #[cfg(feature = "time")]
+    TimePrimitiveDateTime(time::PrimitiveDateTime),
+    #[cfg(feature = "time")]
+    TimeOffsetDateTime(time::OffsetDateTime),
+    #[cfg(feature = "bigdecimal")]
+    BigDecimal(bigdecimal::BigDecimal),
 }

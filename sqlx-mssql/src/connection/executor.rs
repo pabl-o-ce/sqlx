@@ -17,6 +17,22 @@ use futures_util::TryStreamExt;
 use sqlx_core::sql_str::{AssertSqlSafe, SqlSafeStr, SqlStr};
 use std::sync::Arc;
 
+/// Newtype wrapper to bridge `tiberius::ColumnData` into `tiberius::IntoSql`.
+///
+/// tiberius implements `ToSql` but not `IntoSql` for some types (e.g. `time`
+/// crate types, and `BigDecimal` due to version mismatch). `Query::bind()`
+/// requires `IntoSql`, so this wrapper lets us construct `ColumnData` manually
+/// and pass it to `bind()`.
+#[cfg(any(feature = "time", feature = "bigdecimal"))]
+struct ColumnDataWrapper<'a>(tiberius::ColumnData<'a>);
+
+#[cfg(any(feature = "time", feature = "bigdecimal"))]
+impl<'a> tiberius::IntoSql<'a> for ColumnDataWrapper<'a> {
+    fn into_sql(self) -> tiberius::ColumnData<'a> {
+        self.0
+    }
+}
+
 impl MssqlConnection {
     /// Execute a query, eagerly collecting all results.
     ///
@@ -103,6 +119,89 @@ impl MssqlConnection {
                             value,
                             v.scale() as u8,
                         ));
+                    }
+                    #[cfg(feature = "time")]
+                    MssqlArgumentValue::TimeDate(v) => {
+                        let epoch = time::Date::from_ordinal_date(1, 1).unwrap();
+                        let days = (*v - epoch).whole_days() as u32;
+                        let cd = tiberius::ColumnData::Date(Some(
+                            tiberius::time::Date::new(days),
+                        ));
+                        query.bind(ColumnDataWrapper(cd));
+                    }
+                    #[cfg(feature = "time")]
+                    MssqlArgumentValue::TimeTime(v) => {
+                        let (h, m, s, ns) = v.as_hms_nano();
+                        let total_ns = h as u64 * 3_600_000_000_000
+                            + m as u64 * 60_000_000_000
+                            + s as u64 * 1_000_000_000
+                            + ns as u64;
+                        // Scale 7 = 100ns increments
+                        let increments = total_ns / 100;
+                        let cd = tiberius::ColumnData::Time(Some(
+                            tiberius::time::Time::new(increments, 7),
+                        ));
+                        query.bind(ColumnDataWrapper(cd));
+                    }
+                    #[cfg(feature = "time")]
+                    MssqlArgumentValue::TimePrimitiveDateTime(v) => {
+                        let date = v.date();
+                        let time = v.time();
+                        let epoch = time::Date::from_ordinal_date(1, 1).unwrap();
+                        let days = (date - epoch).whole_days() as u32;
+                        let (h, m, s, ns) = time.as_hms_nano();
+                        let total_ns = h as u64 * 3_600_000_000_000
+                            + m as u64 * 60_000_000_000
+                            + s as u64 * 1_000_000_000
+                            + ns as u64;
+                        let increments = total_ns / 100;
+                        let cd = tiberius::ColumnData::DateTime2(Some(
+                            tiberius::time::DateTime2::new(
+                                tiberius::time::Date::new(days),
+                                tiberius::time::Time::new(increments, 7),
+                            ),
+                        ));
+                        query.bind(ColumnDataWrapper(cd));
+                    }
+                    #[cfg(feature = "time")]
+                    MssqlArgumentValue::TimeOffsetDateTime(v) => {
+                        let epoch = time::Date::from_ordinal_date(1, 1).unwrap();
+                        let offset_minutes = v.offset().whole_seconds() / 60;
+                        let date = v.date();
+                        let time = v.time();
+                        let days = (date - epoch).whole_days() as u32;
+                        let (h, m, s, ns) = time.as_hms_nano();
+                        let total_ns = h as u64 * 3_600_000_000_000
+                            + m as u64 * 60_000_000_000
+                            + s as u64 * 1_000_000_000
+                            + ns as u64;
+                        let increments = total_ns / 100;
+                        let dt2 = tiberius::time::DateTime2::new(
+                            tiberius::time::Date::new(days),
+                            tiberius::time::Time::new(increments, 7),
+                        );
+                        let cd = tiberius::ColumnData::DateTimeOffset(Some(
+                            tiberius::time::DateTimeOffset::new(
+                                dt2,
+                                offset_minutes as i16,
+                            ),
+                        ));
+                        query.bind(ColumnDataWrapper(cd));
+                    }
+                    #[cfg(feature = "bigdecimal")]
+                    MssqlArgumentValue::BigDecimal(v) => {
+                        use bigdecimal::ToPrimitive;
+                        // Convert BigDecimal to tiberius Numeric
+                        let (bigint, exponent) = v.as_bigint_and_exponent();
+                        let scale = exponent.max(0) as u8;
+                        // Convert to i128 for Numeric — panics if too large
+                        let value: i128 = bigint
+                            .to_i128()
+                            .expect("BigDecimal value too large for SQL NUMERIC");
+                        let cd = tiberius::ColumnData::Numeric(Some(
+                            tiberius::numeric::Numeric::new_with_scale(value, scale),
+                        ));
+                        query.bind(ColumnDataWrapper(cd));
                     }
                 }
             }
