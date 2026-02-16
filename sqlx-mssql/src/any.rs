@@ -78,6 +78,8 @@ impl AnyConnectionBackend for MssqlConnection {
     fn fetch_many(
         &mut self,
         query: SqlStr,
+        // MSSQL always sends parameterized queries via tiberius (no server-side
+        // prepared statement caching), so the persistent flag has no effect.
         _persistent: bool,
         arguments: Option<AnyArguments>,
     ) -> BoxStream<'_, sqlx_core::Result<Either<AnyQueryResult, AnyRow>>> {
@@ -108,6 +110,7 @@ impl AnyConnectionBackend for MssqlConnection {
     fn fetch_optional(
         &mut self,
         query: SqlStr,
+        // See fetch_many: MSSQL has no server-side prepared statement caching.
         _persistent: bool,
         arguments: Option<AnyArguments>,
     ) -> BoxFuture<'_, sqlx_core::Result<Option<AnyRow>>> {

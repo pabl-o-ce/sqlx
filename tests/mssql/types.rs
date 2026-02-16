@@ -20,11 +20,26 @@ test_type!(i8(
     "CAST(0 AS TINYINT)" == 0_i8
 ));
 
-test_type!(i16(Mssql, "CAST(21415 AS SMALLINT)" == 21415_i16));
+test_type!(i16(
+    Mssql,
+    "CAST(21415 AS SMALLINT)" == 21415_i16,
+    "CAST(-32768 AS SMALLINT)" == i16::MIN,
+    "CAST(32767 AS SMALLINT)" == i16::MAX,
+));
 
-test_type!(i32(Mssql, "CAST(2141512 AS INT)" == 2141512_i32));
+test_type!(i32(
+    Mssql,
+    "CAST(2141512 AS INT)" == 2141512_i32,
+    "CAST(-2147483648 AS INT)" == i32::MIN,
+    "CAST(2147483647 AS INT)" == i32::MAX,
+));
 
-test_type!(i64(Mssql, "CAST(32324324432 AS BIGINT)" == 32324324432_i64));
+test_type!(i64(
+    Mssql,
+    "CAST(32324324432 AS BIGINT)" == 32324324432_i64,
+    "CAST(-9223372036854775808 AS BIGINT)" == i64::MIN,
+    "CAST(9223372036854775807 AS BIGINT)" == i64::MAX,
+));
 
 test_type!(f32(
     Mssql,
@@ -48,6 +63,12 @@ test_type!(f64_smallmoney<f64>(
     "CAST(214748.3647 AS SMALLMONEY)" == 214748.3647_f64,
     "CAST(0 AS SMALLMONEY)" == 0.0_f64,
     "CAST(-1234.5678 AS SMALLMONEY)" == -1234.5678_f64,
+));
+
+#[cfg(feature = "rust_decimal")]
+test_type!(rust_decimal_smallmoney<sqlx::types::Decimal>(Mssql,
+    "CAST(214748.3647 AS SMALLMONEY)" == sqlx::types::Decimal::new(2147483647, 4),
+    "CAST(0 AS SMALLMONEY)" == sqlx::types::Decimal::ZERO,
 ));
 
 test_type!(str_nvarchar<String>(Mssql,
@@ -74,6 +95,58 @@ test_type!(bytes<Vec<u8>>(Mssql,
         == vec![0_u8; 8],
 ));
 
+test_type!(bytes_single<Vec<u8>>(Mssql,
+    "CAST(0xFF AS VARBINARY(MAX))" == vec![0xFF_u8],
+));
+
+test_type!(bytes_large<Vec<u8>>(Mssql,
+    "CAST(REPLICATE(CAST(0xAB AS VARBINARY(MAX)), 10000) AS VARBINARY(MAX))"
+        == vec![0xAB_u8; 10000],
+));
+
+test_type!(str_nchar<String>(Mssql,
+    "CAST('hello' AS NCHAR(5))" == "hello",
+));
+
+test_type!(str_varchar<String>(Mssql,
+    "CAST('hello varchar' AS VARCHAR(50))" == "hello varchar",
+));
+
+test_type!(str_unicode<String>(Mssql,
+    "CAST(N'\u{1F600}\u{1F680}\u{2764}' AS NVARCHAR(MAX))" == "\u{1F600}\u{1F680}\u{2764}",
+    "CAST(N'\u{4F60}\u{597D}\u{4E16}\u{754C}' AS NVARCHAR(MAX))" == "\u{4F60}\u{597D}\u{4E16}\u{754C}",
+));
+
+test_type!(str_nvarchar_max_large<String>(Mssql,
+    "REPLICATE(CAST(N'x' AS NVARCHAR(MAX)), 10000)"
+        == "x".repeat(10000),
+));
+
+test_type!(null_bool<Option<bool>>(Mssql,
+    "CAST(NULL AS BIT)" == None::<bool>,
+));
+
+test_type!(null_string<Option<String>>(Mssql,
+    "CAST(NULL AS NVARCHAR(100))" == None::<String>,
+));
+
+test_type!(null_i64<Option<i64>>(Mssql,
+    "CAST(NULL AS BIGINT)" == None::<i64>,
+));
+
+test_type!(null_f64<Option<f64>>(Mssql,
+    "CAST(NULL AS FLOAT)" == None::<f64>,
+));
+
+test_type!(null_bytes<Option<Vec<u8>>>(Mssql,
+    "CAST(NULL AS VARBINARY(MAX))" == None::<Vec<u8>>,
+));
+
+test_type!(xml<sqlx::mssql::MssqlXml>(Mssql,
+    "CAST('<root><item>hello</item></root>' AS XML)"
+        == sqlx::mssql::MssqlXml::from("<root><item>hello</item></root>".to_owned()),
+));
+
 #[cfg(feature = "uuid")]
 test_type!(uuid<sqlx::types::Uuid>(Mssql,
     "CAST('00000000-0000-0000-0000-000000000000' AS UNIQUEIDENTIFIER)"
@@ -91,6 +164,8 @@ mod chrono {
     type NaiveTime = sqlx::types::chrono::NaiveTime;
     type NaiveDateTime = sqlx::types::chrono::NaiveDateTime;
     type DateTimeUtc = sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>;
+    type DateTimeFixed = sqlx::types::chrono::DateTime<sqlx::types::chrono::FixedOffset>;
+    type FixedOffset = sqlx::types::chrono::FixedOffset;
 
     test_type!(chrono_naive_date<NaiveDate>(Mssql,
         "CAST('2001-01-05' AS DATE)"
@@ -119,6 +194,47 @@ mod chrono {
             == NaiveDate::from_ymd_opt(2019, 1, 2)
                 .unwrap()
                 .and_hms_opt(5, 10, 20)
+                .unwrap()
+                .and_utc(),
+    ));
+
+    test_type!(chrono_date_time_fixed_utc<DateTimeFixed>(Mssql,
+        "CAST('2019-01-02 05:10:20.000 +00:00' AS DATETIMEOFFSET)"
+            == NaiveDate::from_ymd_opt(2019, 1, 2)
+                .unwrap()
+                .and_hms_opt(5, 10, 20)
+                .unwrap()
+                .and_local_timezone(FixedOffset::east_opt(0).unwrap())
+                .unwrap(),
+    ));
+
+    test_type!(chrono_date_time_fixed_positive<DateTimeFixed>(Mssql,
+        "CAST('2024-06-15 14:30:00.000 +05:30' AS DATETIMEOFFSET)"
+            == NaiveDate::from_ymd_opt(2024, 6, 15)
+                .unwrap()
+                .and_hms_opt(14, 30, 0)
+                .unwrap()
+                .and_local_timezone(FixedOffset::east_opt(5 * 3600 + 30 * 60).unwrap())
+                .unwrap(),
+    ));
+
+    test_type!(chrono_date_time_fixed_negative<DateTimeFixed>(Mssql,
+        "CAST('2024-12-25 08:00:00.000 -08:00' AS DATETIMEOFFSET)"
+            == NaiveDate::from_ymd_opt(2024, 12, 25)
+                .unwrap()
+                .and_hms_opt(8, 0, 0)
+                .unwrap()
+                .and_local_timezone(FixedOffset::west_opt(8 * 3600).unwrap())
+                .unwrap(),
+    ));
+
+    // Verify DateTime<Utc> can decode from DATETIMEOFFSET with non-zero offset
+    // (the value should be converted to UTC)
+    test_type!(chrono_date_time_utc_from_offset<DateTimeUtc>(Mssql,
+        "CAST('2024-06-15 14:30:00.000 +05:30' AS DATETIMEOFFSET)"
+            == NaiveDate::from_ymd_opt(2024, 6, 15)
+                .unwrap()
+                .and_hms_opt(9, 0, 0)
                 .unwrap()
                 .and_utc(),
     ));

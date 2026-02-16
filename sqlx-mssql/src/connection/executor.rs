@@ -331,6 +331,9 @@ impl<'c> Executor<'c> for &'c mut MssqlConnection {
         E: 'q,
     {
         let arguments = query.take_arguments().map_err(Error::Encode);
+        // MSSQL always sends parameterized queries via tiberius — there is no
+        // server-side prepared statement caching like PostgreSQL's, so this
+        // flag is intentionally unused.
         let _persistent = query.persistent();
         let sql = query.sql();
 
