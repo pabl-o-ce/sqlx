@@ -97,6 +97,20 @@ impl Connection for MssqlConnection {
     }
 }
 
+// Implement `AsMut<Self>` so that `MssqlConnection` can be wrapped in
+// a `MssqlAdvisoryLockGuard`.
+impl AsMut<MssqlConnection> for MssqlConnection {
+    fn as_mut(&mut self) -> &mut MssqlConnection {
+        self
+    }
+}
+
+impl AsRef<MssqlConnection> for MssqlConnection {
+    fn as_ref(&self) -> &MssqlConnection {
+        self
+    }
+}
+
 impl MssqlConnection {
     /// Begin a transaction with a specific isolation level.
     ///

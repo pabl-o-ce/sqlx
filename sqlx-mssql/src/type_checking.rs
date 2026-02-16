@@ -36,6 +36,7 @@ impl_type_checking!(
             sqlx::types::chrono::NaiveDate,
             sqlx::types::chrono::NaiveDateTime,
             sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>,
+            sqlx::types::chrono::DateTime<sqlx::types::chrono::FixedOffset>,
         },
         time: {
             sqlx::types::time::Time,

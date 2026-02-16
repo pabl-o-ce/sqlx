@@ -3881,6 +3881,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlx-example-mssql-todos"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.5.40",
+ "dotenvy",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
 name = "sqlx-example-mysql-todos"
 version = "0.1.0"
 dependencies = [

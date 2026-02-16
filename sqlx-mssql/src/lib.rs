@@ -39,7 +39,7 @@ mod migrate;
 #[cfg(feature = "migrate")]
 mod testing;
 
-pub use advisory_lock::{MssqlAdvisoryLock, MssqlAdvisoryLockMode};
+pub use advisory_lock::{MssqlAdvisoryLock, MssqlAdvisoryLockGuard, MssqlAdvisoryLockMode};
 pub use arguments::MssqlArguments;
 pub use bulk_insert::MssqlBulkInsert;
 pub use column::MssqlColumn;

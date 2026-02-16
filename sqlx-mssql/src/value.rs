@@ -24,6 +24,8 @@ pub(crate) enum MssqlData {
     NaiveDate(chrono::NaiveDate),
     #[cfg(feature = "chrono")]
     NaiveTime(chrono::NaiveTime),
+    #[cfg(feature = "chrono")]
+    DateTimeFixedOffset(chrono::DateTime<chrono::FixedOffset>),
     #[cfg(feature = "uuid")]
     Uuid(uuid::Uuid),
     #[cfg(feature = "rust_decimal")]
@@ -168,10 +170,11 @@ pub(crate) fn column_data_to_mssql_data(data: &tiberius::ColumnData<'_>) -> Mssq
                 * 10i64.pow(9u32.saturating_sub(dto.datetime2().time().scale() as u32));
             let time = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()
                 + chrono::Duration::nanoseconds(ns);
-            // Subtract the offset to convert to UTC
-            let naive = chrono::NaiveDateTime::new(date, time)
-                - chrono::Duration::minutes(dto.offset() as i64);
-            MssqlData::NaiveDateTime(naive)
+            let naive = chrono::NaiveDateTime::new(date, time);
+            let offset_secs = dto.offset() as i32 * 60;
+            let fixed_offset = chrono::FixedOffset::east_opt(offset_secs)
+                .expect("valid offset from tiberius");
+            MssqlData::DateTimeFixedOffset(naive.and_local_timezone(fixed_offset).unwrap())
         }
 
         #[cfg(feature = "uuid")]

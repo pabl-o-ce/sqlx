@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
 use crate::database::MssqlArgumentValue;
 use crate::decode::Decode;
@@ -37,6 +37,7 @@ impl Decode<'_, Mssql> for NaiveDateTime {
     fn decode(value: MssqlValueRef<'_>) -> Result<Self, BoxDynError> {
         match value.data {
             MssqlData::NaiveDateTime(v) => Ok(*v),
+            MssqlData::DateTimeFixedOffset(v) => Ok(v.naive_utc()),
             MssqlData::Null => Err("unexpected NULL".into()),
             _ => Err(format!("expected datetime, got {:?}", value.data).into()),
         }
@@ -66,6 +67,7 @@ impl Decode<'_, Mssql> for NaiveDate {
         match value.data {
             MssqlData::NaiveDate(v) => Ok(*v),
             MssqlData::NaiveDateTime(v) => Ok(v.date()),
+            MssqlData::DateTimeFixedOffset(v) => Ok(v.naive_utc().date()),
             MssqlData::Null => Err("unexpected NULL".into()),
             _ => Err(format!("expected date, got {:?}", value.data).into()),
         }
@@ -130,8 +132,49 @@ impl Decode<'_, Mssql> for DateTime<Utc> {
     fn decode(value: MssqlValueRef<'_>) -> Result<Self, BoxDynError> {
         match value.data {
             MssqlData::NaiveDateTime(v) => Ok(v.and_utc()),
+            MssqlData::DateTimeFixedOffset(v) => Ok(v.with_timezone(&Utc)),
             MssqlData::Null => Err("unexpected NULL".into()),
             _ => Err(format!("expected datetime, got {:?}", value.data).into()),
+        }
+    }
+}
+
+// ── DateTime<FixedOffset> ───────────────────────────────────────────────────
+
+impl Type<Mssql> for DateTime<FixedOffset> {
+    fn type_info() -> MssqlTypeInfo {
+        MssqlTypeInfo::new("DATETIMEOFFSET")
+    }
+
+    fn compatible(ty: &MssqlTypeInfo) -> bool {
+        matches!(
+            ty.base_name(),
+            "DATETIMEOFFSET" | "DATETIME2"
+        )
+    }
+}
+
+impl Encode<'_, Mssql> for DateTime<FixedOffset> {
+    fn encode_by_ref(
+        &self,
+        buf: &mut Vec<MssqlArgumentValue>,
+    ) -> Result<IsNull, BoxDynError> {
+        buf.push(MssqlArgumentValue::DateTimeFixedOffset(*self));
+        Ok(IsNull::No)
+    }
+}
+
+impl Decode<'_, Mssql> for DateTime<FixedOffset> {
+    fn decode(value: MssqlValueRef<'_>) -> Result<Self, BoxDynError> {
+        match value.data {
+            MssqlData::DateTimeFixedOffset(v) => Ok(*v),
+            MssqlData::NaiveDateTime(v) => {
+                // Assume UTC if no offset information
+                let utc = v.and_utc();
+                Ok(utc.with_timezone(&FixedOffset::east_opt(0).unwrap()))
+            }
+            MssqlData::Null => Err("unexpected NULL".into()),
+            _ => Err(format!("expected datetimeoffset, got {:?}", value.data).into()),
         }
     }
 }

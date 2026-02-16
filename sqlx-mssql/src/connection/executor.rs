@@ -24,10 +24,10 @@ use std::sync::Arc;
 /// crate types, and `BigDecimal` due to version mismatch). `Query::bind()`
 /// requires `IntoSql`, so this wrapper lets us construct `ColumnData` manually
 /// and pass it to `bind()`.
-#[cfg(any(feature = "time", feature = "bigdecimal"))]
+#[cfg(any(feature = "chrono", feature = "time", feature = "bigdecimal"))]
 struct ColumnDataWrapper<'a>(tiberius::ColumnData<'a>);
 
-#[cfg(any(feature = "time", feature = "bigdecimal"))]
+#[cfg(any(feature = "chrono", feature = "time", feature = "bigdecimal"))]
 impl<'a> tiberius::IntoSql<'a> for ColumnDataWrapper<'a> {
     fn into_sql(self) -> tiberius::ColumnData<'a> {
         self.0
@@ -101,6 +101,30 @@ impl MssqlConnection {
                     #[cfg(feature = "chrono")]
                     MssqlArgumentValue::NaiveTime(v) => {
                         query.bind(*v);
+                    }
+                    #[cfg(feature = "chrono")]
+                    MssqlArgumentValue::DateTimeFixedOffset(v) => {
+                        use chrono::Timelike as _;
+                        let epoch = chrono::NaiveDate::from_ymd_opt(1, 1, 1).unwrap();
+                        let naive = v.naive_local();
+                        let days = (naive.date() - epoch).num_days() as u32;
+                        let total_ns = naive.time().num_seconds_from_midnight() as u64
+                            * 1_000_000_000
+                            + naive.time().nanosecond() as u64 % 1_000_000_000;
+                        let increments = total_ns / 100;
+                        let offset_minutes =
+                            v.offset().local_minus_utc() / 60;
+                        let dt2 = tiberius::time::DateTime2::new(
+                            tiberius::time::Date::new(days),
+                            tiberius::time::Time::new(increments, 7),
+                        );
+                        let cd = tiberius::ColumnData::DateTimeOffset(Some(
+                            tiberius::time::DateTimeOffset::new(
+                                dt2,
+                                offset_minutes as i16,
+                            ),
+                        ));
+                        query.bind(ColumnDataWrapper(cd));
                     }
                     #[cfg(feature = "uuid")]
                     MssqlArgumentValue::Uuid(v) => {
