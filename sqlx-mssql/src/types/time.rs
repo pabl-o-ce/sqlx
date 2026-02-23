@@ -14,6 +14,10 @@ impl Type<Mssql> for Date {
     fn type_info() -> MssqlTypeInfo {
         MssqlTypeInfo::new("DATE")
     }
+
+    fn compatible(ty: &MssqlTypeInfo) -> bool {
+        ty.base_name() == "DATE"
+    }
 }
 
 impl Encode<'_, Mssql> for Date {
@@ -42,6 +46,10 @@ impl Decode<'_, Mssql> for Date {
 impl Type<Mssql> for Time {
     fn type_info() -> MssqlTypeInfo {
         MssqlTypeInfo::new("TIME")
+    }
+
+    fn compatible(ty: &MssqlTypeInfo) -> bool {
+        ty.base_name() == "TIME"
     }
 }
 

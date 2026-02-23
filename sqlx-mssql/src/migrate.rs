@@ -36,9 +36,10 @@ impl MigrateDatabase for Mssql {
         let (options, database) = parse_for_maintenance(url)?;
         let mut conn = options.connect().await?;
 
+        let escaped = database.replace(']', "]]");
         let _ = conn
             .execute(AssertSqlSafe(format!(
-                "CREATE DATABASE [{database}]"
+                "CREATE DATABASE [{escaped}]"
             )))
             .await?;
 
@@ -64,12 +65,13 @@ impl MigrateDatabase for Mssql {
         let mut conn = options.connect().await?;
 
         // Force close existing connections before dropping
+        let escaped = database.replace('\'', "''").replace(']', "]]");
         let _ = conn
             .execute(AssertSqlSafe(format!(
-                "IF DB_ID('{database}') IS NOT NULL \
+                "IF DB_ID('{escaped}') IS NOT NULL \
                  BEGIN \
-                     ALTER DATABASE [{database}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; \
-                     DROP DATABASE [{database}]; \
+                     ALTER DATABASE [{escaped}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; \
+                     DROP DATABASE [{escaped}]; \
                  END"
             )))
             .await?;
@@ -84,9 +86,10 @@ impl Migrate for MssqlConnection {
         schema_name: &'e str,
     ) -> BoxFuture<'e, Result<(), MigrateError>> {
         Box::pin(async move {
+            let escaped = schema_name.replace('\'', "''").replace(']', "]]");
             self.execute(AssertSqlSafe(format!(
-                r#"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{schema_name}')
-                   EXEC('CREATE SCHEMA [{schema_name}]')"#
+                r#"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{escaped}')
+                   EXEC('CREATE SCHEMA [{escaped}]')"#
             )))
             .await?;
 
@@ -158,10 +161,14 @@ CREATE TABLE {table_name} (
 
     fn lock(&mut self) -> BoxFuture<'_, Result<(), MigrateError>> {
         Box::pin(async move {
-            // Use sp_getapplock for advisory locking in MSSQL
+            // sp_getapplock returns a status code (0/1 = success, negative = failure)
+            // but `execute` only surfaces SQL errors, not return values.
+            // We use THROW to convert a failed lock acquisition into a SQL error.
             let _ = self
                 .execute(
-                    "EXEC sp_getapplock @Resource = 'sqlx_migrations', @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = -1"
+                    "DECLARE @r INT; \
+                     EXEC @r = sp_getapplock @Resource = 'sqlx_migrations', @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = -1; \
+                     IF @r < 0 THROW 50000, 'Failed to acquire migration lock', 1;"
                 )
                 .await?;
 

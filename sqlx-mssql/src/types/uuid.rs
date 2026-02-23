@@ -12,6 +12,10 @@ impl Type<Mssql> for Uuid {
     fn type_info() -> MssqlTypeInfo {
         MssqlTypeInfo::new("UNIQUEIDENTIFIER")
     }
+
+    fn compatible(ty: &MssqlTypeInfo) -> bool {
+        ty.base_name() == "UNIQUEIDENTIFIER"
+    }
 }
 
 impl Encode<'_, Mssql> for Uuid {
@@ -38,6 +42,10 @@ impl Decode<'_, Mssql> for Uuid {
 impl Type<Mssql> for uuid::fmt::Hyphenated {
     fn type_info() -> MssqlTypeInfo {
         MssqlTypeInfo::new("UNIQUEIDENTIFIER")
+    }
+
+    fn compatible(ty: &MssqlTypeInfo) -> bool {
+        ty.base_name() == "UNIQUEIDENTIFIER"
     }
 }
 

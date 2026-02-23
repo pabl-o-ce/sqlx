@@ -518,3 +518,8 @@ required-features = ["mssql"]
 name = "mssql-bulk-insert"
 path = "tests/mssql/bulk-insert.rs"
 required-features = ["mssql"]
+
+[[test]]
+name = "mssql-migrate"
+path = "tests/mssql/migrate.rs"
+required-features = ["mssql", "macros", "migrate"]

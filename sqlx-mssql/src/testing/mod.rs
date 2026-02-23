@@ -52,11 +52,12 @@ impl TestSupport for Mssql {
         let mut deleted_count = 0usize;
 
         for db_name in &delete_db_names {
+            let escaped = db_name.replace('\'', "''").replace(']', "]]");
             let drop_sql = format!(
-                "IF DB_ID('{db_name}') IS NOT NULL \
+                "IF DB_ID('{escaped}') IS NOT NULL \
                  BEGIN \
-                     ALTER DATABASE [{db_name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; \
-                     DROP DATABASE [{db_name}]; \
+                     ALTER DATABASE [{escaped}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; \
+                     DROP DATABASE [{escaped}]; \
                  END"
             );
 
@@ -168,11 +169,12 @@ async fn test_context(args: &TestArgs) -> Result<TestContext<Mssql>, Error> {
 }
 
 async fn do_cleanup(conn: &mut MssqlConnection, db_name: &str) -> Result<(), Error> {
+    let escaped = db_name.replace('\'', "''").replace(']', "]]");
     let drop_sql = format!(
-        "IF DB_ID('{db_name}') IS NOT NULL \
+        "IF DB_ID('{escaped}') IS NOT NULL \
          BEGIN \
-             ALTER DATABASE [{db_name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; \
-             DROP DATABASE [{db_name}]; \
+             ALTER DATABASE [{escaped}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; \
+             DROP DATABASE [{escaped}]; \
          END"
     );
     conn.execute(AssertSqlSafe(drop_sql)).await?;

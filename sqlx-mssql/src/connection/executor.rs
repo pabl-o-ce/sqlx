@@ -219,10 +219,12 @@ impl MssqlConnection {
                         // Convert BigDecimal to tiberius Numeric
                         let (bigint, exponent) = v.as_bigint_and_exponent();
                         let scale = exponent.max(0) as u8;
-                        // Convert to i128 for Numeric — panics if too large
-                        let value: i128 = bigint
-                            .to_i128()
-                            .expect("BigDecimal value too large for SQL NUMERIC");
+                        // Convert to i128 for Numeric
+                        let value: i128 = bigint.to_i128().ok_or_else(|| {
+                            Error::Encode(
+                                format!("BigDecimal value too large for SQL NUMERIC: {v}").into(),
+                            )
+                        })?;
                         let cd = tiberius::ColumnData::Numeric(Some(
                             tiberius::numeric::Numeric::new_with_scale(value, scale),
                         ));
@@ -290,8 +292,12 @@ async fn collect_results<'a>(
                 column_names = Some(Arc::new(names));
             }
             tiberius::QueryItem::Row(row) => {
-                let cols = columns.as_ref().expect("row received before metadata");
-                let names = column_names.as_ref().expect("row received before metadata");
+                let cols = columns.as_ref().ok_or_else(|| {
+                    Error::Protocol("row received before metadata".into())
+                })?;
+                let names = column_names.as_ref().ok_or_else(|| {
+                    Error::Protocol("row received before metadata".into())
+                })?;
 
                 // Convert tiberius row to MssqlRow by iterating over cells
                 let values: Vec<MssqlData> = row

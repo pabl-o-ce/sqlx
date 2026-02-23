@@ -50,6 +50,10 @@ impl Type<Mssql> for NaiveDate {
     fn type_info() -> MssqlTypeInfo {
         MssqlTypeInfo::new("DATE")
     }
+
+    fn compatible(ty: &MssqlTypeInfo) -> bool {
+        ty.base_name() == "DATE"
+    }
 }
 
 impl Encode<'_, Mssql> for NaiveDate {
@@ -79,6 +83,10 @@ impl Decode<'_, Mssql> for NaiveDate {
 impl Type<Mssql> for NaiveTime {
     fn type_info() -> MssqlTypeInfo {
         MssqlTypeInfo::new("TIME")
+    }
+
+    fn compatible(ty: &MssqlTypeInfo) -> bool {
+        ty.base_name() == "TIME"
     }
 }
 

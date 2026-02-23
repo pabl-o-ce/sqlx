@@ -14,7 +14,7 @@ impl Type<Mssql> for Decimal {
     }
 
     fn compatible(ty: &MssqlTypeInfo) -> bool {
-        matches!(ty.base_name(), "DECIMAL" | "NUMERIC" | "MONEY")
+        matches!(ty.base_name(), "DECIMAL" | "NUMERIC" | "MONEY" | "SMALLMONEY")
     }
 }
 
