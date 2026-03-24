@@ -1184,4 +1184,6 @@ Comprehensive test suite in `tests/mssql/`:
 | Derives | `derives.rs` | `#[derive(FromRow)]`, custom field mappings |
 | Query builder | `query_builder.rs` | Dynamic query construction, parameter handling |
 | Error handling | `error.rs` | Database error inspection, error details |
-| Compile-time macros | `tests/mssql-macros/` | Online and offline macro verification |
+| Compile-time macros | `macros.rs` | Online and offline macro verification |
+| Describe | `describe.rs` | `sp_describe` column metadata and type inference |
+| Migrations | `migrate.rs` | Migration lifecycle: create, run, revert |
