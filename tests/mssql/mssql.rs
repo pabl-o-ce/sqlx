@@ -1,7 +1,8 @@
 use futures_util::TryStreamExt;
+use sqlx::mssql::MssqlRow;
 use sqlx::mssql::{Mssql, MssqlPoolOptions};
-use sqlx::{Column, Connection, Executor, MssqlConnection, Row, Statement, TypeInfo};
-use sqlx_core::mssql::MssqlRow;
+use sqlx::mssql::{MssqlAdvisoryLock, MssqlIsolationLevel};
+use sqlx::{Column, Connection, Executor, MssqlConnection, Row, SqlSafeStr, Statement, TypeInfo};
 use sqlx_test::new;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::time::Duration;
@@ -195,9 +196,9 @@ async fn it_can_work_with_transactions() -> anyhow::Result<()> {
 
     let mut tx = conn.begin().await?;
 
-    sqlx::query("INSERT INTO _sqlx_users_1922 (id) VALUES ($1)")
+    sqlx::query("INSERT INTO _sqlx_users_1922 (id) VALUES (@p1)")
         .bind(10_i32)
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await?;
 
     tx.rollback().await?;
@@ -214,7 +215,7 @@ async fn it_can_work_with_transactions() -> anyhow::Result<()> {
 
     sqlx::query("INSERT INTO _sqlx_users_1922 (id) VALUES (@p1)")
         .bind(10_i32)
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await?;
 
     tx.commit().await?;
@@ -232,7 +233,7 @@ async fn it_can_work_with_transactions() -> anyhow::Result<()> {
 
         sqlx::query("INSERT INTO _sqlx_users_1922 (id) VALUES (@p1)")
             .bind(20_i32)
-            .execute(&mut tx)
+            .execute(&mut *tx)
             .await?;
     }
 
@@ -262,7 +263,7 @@ async fn it_can_work_with_nested_transactions() -> anyhow::Result<()> {
     // insert a user
     sqlx::query("INSERT INTO _sqlx_users_2523 (id) VALUES (@p1)")
         .bind(50_i32)
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await?;
 
     // begin once more
@@ -271,7 +272,7 @@ async fn it_can_work_with_nested_transactions() -> anyhow::Result<()> {
     // insert another user
     sqlx::query("INSERT INTO _sqlx_users_2523 (id) VALUES (@p1)")
         .bind(10_i32)
-        .execute(&mut tx2)
+        .execute(&mut *tx2)
         .await?;
 
     // never mind, rollback
@@ -279,7 +280,7 @@ async fn it_can_work_with_nested_transactions() -> anyhow::Result<()> {
 
     // did we really?
     let (count,): (i32,) = sqlx::query_as("SELECT COUNT(*) FROM _sqlx_users_2523")
-        .fetch_one(&mut tx)
+        .fetch_one(&mut *tx)
         .await?;
 
     assert_eq!(count, 1);
@@ -305,10 +306,12 @@ async fn it_can_prepare_then_execute() -> anyhow::Result<()> {
     let tweet_id: i64 = sqlx::query_scalar(
         "INSERT INTO tweet ( id, text ) OUTPUT INSERTED.id VALUES ( 50, 'Hello, World' )",
     )
-    .fetch_one(&mut tx)
+    .fetch_one(&mut *tx)
     .await?;
 
-    let statement = tx.prepare("SELECT * FROM tweet WHERE id = @p1").await?;
+    let statement = tx
+        .prepare("SELECT * FROM tweet WHERE id = @p1".into_sql_str())
+        .await?;
 
     assert_eq!(statement.column(0).name(), "id");
     assert_eq!(statement.column(1).name(), "text");
@@ -320,7 +323,7 @@ async fn it_can_prepare_then_execute() -> anyhow::Result<()> {
     assert_eq!(statement.column(2).type_info().name(), "TINYINT");
     assert_eq!(statement.column(3).type_info().name(), "BIGINT");
 
-    let row = statement.query().bind(tweet_id).fetch_one(&mut tx).await?;
+    let row = statement.query().bind(tweet_id).fetch_one(&mut *tx).await?;
     let tweet_text: String = row.try_get("text")?;
 
     assert_eq!(tweet_text, "Hello, World");
@@ -359,7 +362,7 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
                     CREATE TABLE #conn_stats(
                         id int primary key,
                         before_acquire_calls int default 0,
-                        after_release_calls int default 0 
+                        after_release_calls int default 0
                     );
                     INSERT INTO #conn_stats(id) VALUES ({});
                     "#,
@@ -367,7 +370,7 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
                     id
                 );
 
-                conn.execute(&statement[..]).await?;
+                conn.execute(sqlx::AssertSqlSafe(statement)).await?;
                 Ok(())
             })
         })
@@ -380,7 +383,7 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
                 // MSSQL doesn't support UPDATE ... RETURNING either
                 sqlx::query(
                     r#"
-                        UPDATE #conn_stats 
+                        UPDATE #conn_stats
                         SET before_acquire_calls = before_acquire_calls + 1
                     "#,
                 )
@@ -404,7 +407,7 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
             Box::pin(async move {
                 sqlx::query(
                     r#"
-                        UPDATE #conn_stats 
+                        UPDATE #conn_stats
                         SET after_release_calls = after_release_calls + 1
                     "#,
                 )
@@ -456,6 +459,220 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
     }
 
     pool.close().await;
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_can_query_multiple_result_sets() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+
+    // A batch that produces two result sets
+    let results = conn
+        .run("SELECT 1 AS a; SELECT 2 AS b, 3 AS c;", None)
+        .await?;
+
+    // First result set: one row with column "a"
+    let mut rows_first = Vec::new();
+    let mut rows_second = Vec::new();
+    let mut result_count = 0;
+
+    for item in &results {
+        match item {
+            either::Either::Left(_) => {
+                result_count += 1;
+            }
+            either::Either::Right(row) => {
+                if result_count == 0 {
+                    rows_first.push(row);
+                } else {
+                    rows_second.push(row);
+                }
+            }
+        }
+    }
+
+    assert_eq!(rows_first.len(), 1);
+    assert_eq!(rows_first[0].try_get::<i32, _>("a")?, 1);
+
+    assert_eq!(rows_second.len(), 1);
+    assert_eq!(rows_second[0].try_get::<i32, _>("b")?, 2);
+    assert_eq!(rows_second[0].try_get::<i32, _>("c")?, 3);
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_can_inspect_column_metadata() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+
+    let statement = conn
+        .prepare("SELECT CAST(1 AS INT) AS int_col, CAST('hello' AS NVARCHAR(50)) AS str_col, CAST(NULL AS BIGINT) AS nullable_col".into_sql_str())
+        .await?;
+
+    assert_eq!(statement.column(0).name(), "int_col");
+    assert_eq!(statement.column(1).name(), "str_col");
+    assert_eq!(statement.column(2).name(), "nullable_col");
+
+    assert_eq!(statement.column(0).type_info().name(), "INT");
+    // sp_describe_first_result_set returns "NVARCHAR(50)" for typed NVARCHAR
+    assert!(statement
+        .column(1)
+        .type_info()
+        .name()
+        .starts_with("NVARCHAR"));
+    assert_eq!(statement.column(2).type_info().name(), "BIGINT");
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_can_reuse_connection_after_error() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+
+    // Cause an error
+    let res: Result<_, sqlx::Error> = sqlx::query("SELECT * FROM this_table_does_not_exist_12345")
+        .execute(&mut conn)
+        .await;
+    assert!(res.is_err());
+
+    // Connection should still be usable
+    let val: (i32,) = sqlx::query_as("SELECT 42").fetch_one(&mut conn).await?;
+    assert_eq!(val.0, 42);
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_can_bind_many_parameters() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+
+    // Build a query with 100 parameters: SELECT @p1 + @p2 + ... + @p100
+    let param_refs: Vec<String> = (1..=100).map(|i| format!("@p{i}")).collect();
+    let sql = format!("SELECT {}", param_refs.join(" + "));
+
+    let mut query = sqlx::query_scalar::<_, i32>(&sql);
+    for _ in 0..100 {
+        query = query.bind(1_i32);
+    }
+
+    let result: i32 = query.fetch_one(&mut conn).await?;
+    assert_eq!(result, 100);
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_handles_special_characters_in_strings() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+
+    // Single quotes
+    let val: (String,) = sqlx::query_as("SELECT @p1")
+        .bind("it's a test")
+        .fetch_one(&mut conn)
+        .await?;
+    assert_eq!(val.0, "it's a test");
+
+    // Backslashes
+    let val: (String,) = sqlx::query_as("SELECT @p1")
+        .bind(r"C:\Users\test")
+        .fetch_one(&mut conn)
+        .await?;
+    assert_eq!(val.0, r"C:\Users\test");
+
+    // Unicode
+    let val: (String,) = sqlx::query_as("SELECT @p1")
+        .bind("\u{1F600} hello \u{4E16}\u{754C}")
+        .fetch_one(&mut conn)
+        .await?;
+    assert_eq!(val.0, "\u{1F600} hello \u{4E16}\u{754C}");
+
+    // Newlines and tabs
+    let val: (String,) = sqlx::query_as("SELECT @p1")
+        .bind("line1\nline2\ttab")
+        .fetch_one(&mut conn)
+        .await?;
+    assert_eq!(val.0, "line1\nline2\ttab");
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_can_use_transaction_isolation_levels() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+
+    // Start a transaction with READ UNCOMMITTED isolation
+    let mut tx = conn
+        .begin_with_isolation(MssqlIsolationLevel::ReadUncommitted)
+        .await?;
+
+    // Verify we can do work inside the transaction
+    let val: (i32,) = sqlx::query_as("SELECT 1").fetch_one(&mut *tx).await?;
+    assert_eq!(val.0, 1);
+
+    tx.commit().await?;
+
+    // Start a transaction with SERIALIZABLE isolation
+    let mut tx = conn
+        .begin_with_isolation(MssqlIsolationLevel::Serializable)
+        .await?;
+
+    let val: (i32,) = sqlx::query_as("SELECT 2").fetch_one(&mut *tx).await?;
+    assert_eq!(val.0, 2);
+
+    tx.rollback().await?;
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_can_use_advisory_lock_guard() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+
+    // Need a transaction context for sp_getapplock with Session owner
+    // Actually, Session-scoped locks work outside transactions too.
+    let lock = MssqlAdvisoryLock::new("sqlx_test_lock_guard");
+
+    // Acquire the lock via the RAII guard
+    let mut guard = lock.acquire_guard(&mut conn).await?;
+
+    // Use the connection through the guard
+    let val: (i32,) = sqlx::query_as("SELECT 99").fetch_one(&mut *guard).await?;
+    assert_eq!(val.0, 99);
+
+    // Release the lock and get the connection back
+    let conn = guard.release_now().await?;
+
+    // Verify we can still use the connection
+    let val: (i32,) = sqlx::query_as("SELECT 100").fetch_one(conn).await?;
+    assert_eq!(val.0, 100);
+
+    Ok(())
+}
+
+#[sqlx_macros::test]
+async fn it_can_try_acquire_advisory_lock() -> anyhow::Result<()> {
+    let mut conn1 = new::<Mssql>().await?;
+    let mut conn2 = new::<Mssql>().await?;
+
+    let lock = MssqlAdvisoryLock::new("sqlx_test_try_lock");
+
+    // Acquire on conn1
+    lock.acquire(&mut conn1).await?;
+
+    // Try to acquire on conn2 — should fail (return false) since it's exclusive
+    let acquired = lock.try_acquire(&mut conn2).await?;
+    assert!(!acquired);
+
+    // Release on conn1
+    let released = lock.release(&mut conn1).await?;
+    assert!(released);
+
+    // Now conn2 should be able to acquire
+    let acquired = lock.try_acquire(&mut conn2).await?;
+    assert!(acquired);
+
+    lock.release(&mut conn2).await?;
 
     Ok(())
 }

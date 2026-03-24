@@ -37,6 +37,8 @@ pub fn install_default_drivers() {
 
     ONCE.call_once(|| {
         install_drivers(&[
+            #[cfg(feature = "mssql")]
+            sqlx_mssql::any::DRIVER,
             #[cfg(feature = "mysql")]
             sqlx_mysql::any::DRIVER,
             #[cfg(feature = "postgres")]

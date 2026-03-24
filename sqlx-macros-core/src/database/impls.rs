@@ -46,6 +46,9 @@ mod sqlx {
     #[cfg(feature = "postgres")]
     pub use sqlx_postgres as postgres;
 
+    #[cfg(feature = "mssql")]
+    pub use sqlx_mssql as mssql;
+
     #[cfg(feature = "_sqlite")]
     pub use sqlx_sqlite as sqlite;
 }
@@ -61,6 +64,12 @@ impl_database_ext! {
 impl_database_ext! {
     sqlx::postgres::Postgres,
     row: sqlx::postgres::PgRow,
+}
+
+#[cfg(feature = "mssql")]
+impl_database_ext! {
+    sqlx::mssql::Mssql,
+    row: sqlx::mssql::MssqlRow,
 }
 
 #[cfg(feature = "_sqlite")]

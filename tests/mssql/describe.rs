@@ -1,12 +1,12 @@
 use sqlx::mssql::Mssql;
-use sqlx::{Column, Executor, TypeInfo};
+use sqlx::{Column, Executor, SqlSafeStr, TypeInfo};
 use sqlx_test::new;
 
 #[sqlx_macros::test]
 async fn it_describes_simple() -> anyhow::Result<()> {
     let mut conn = new::<Mssql>().await?;
 
-    let d = conn.describe("SELECT * FROM tweet").await?;
+    let d = conn.describe("SELECT * FROM tweet".into_sql_str()).await?;
 
     assert_eq!(d.columns()[0].name(), "id");
     assert_eq!(d.columns()[1].name(), "text");
@@ -31,7 +31,7 @@ async fn it_describes_with_params() -> anyhow::Result<()> {
     let mut conn = new::<Mssql>().await?;
 
     let d = conn
-        .describe("SELECT text FROM tweet WHERE id = @p1")
+        .describe("SELECT text FROM tweet WHERE id = @p1".into_sql_str())
         .await?;
 
     assert_eq!(d.columns()[0].name(), "text");

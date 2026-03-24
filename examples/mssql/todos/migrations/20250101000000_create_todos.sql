@@ -1,0 +1,5 @@
+CREATE TABLE todos (
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    description NVARCHAR(MAX) NOT NULL,
+    done BIT NOT NULL DEFAULT 0
+);

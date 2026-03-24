@@ -198,6 +198,34 @@ services:
             MARIADB_DATABASE: sqlx
             MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 1
     #
+    # Microsoft SQL Server 2022, 2019
+    #
+
+    mssql_2022:
+        build:
+            context: .
+            dockerfile: mssql/Dockerfile
+            args:
+                VERSION: 2022-latest
+        ports:
+            - 1433
+        environment:
+            ACCEPT_EULA: "Y"
+            SA_PASSWORD: "YourStrong!Passw0rd"
+
+    mssql_2019:
+        build:
+            context: .
+            dockerfile: mssql/Dockerfile
+            args:
+                VERSION: 2019-latest
+        ports:
+            - 1433
+        environment:
+            ACCEPT_EULA: "Y"
+            SA_PASSWORD: "YourStrong!Passw0rd"
+
+    #
     # PostgreSQL 17.x, 16.x, 15.x, 14.x, 13.x
     # https://www.postgresql.org/support/versioning/
     #

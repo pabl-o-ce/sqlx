@@ -104,6 +104,12 @@ jobs:
           -p sqlx-sqlite
           --all-features      
 
+      - name: Test sqlx-mssql
+        run: >
+          cargo test
+          -p sqlx-mssql
+          --all-features
+
       - name: Test sqlx-macros-core
         run: >
           cargo test
@@ -514,3 +520,78 @@ jobs:
         env:
           DATABASE_URL: mysql://root@localhost:3306/sqlx?sslmode=verify_ca&ssl-ca=.%2Ftests%2Fcerts%2Fca.crt&ssl-key=.%2Ftests%2Fcerts%2Fkeys%2Fclient.key&ssl-cert=.%2Ftests%2Fcerts%2Fclient.crt
           RUSTFLAGS: --cfg mariadb="${{ matrix.mariadb }}"
+
+  mssql:
+    name: MSSQL
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        mssql: [ 2022, 2019 ]
+        runtime: [ async-global-executor, smol, tokio ]
+        tls: [ native-tls, rustls-aws-lc-rs, rustls-ring, none ]
+    needs: check
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: >
+          cargo build
+          --no-default-features
+          --features mssql,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }},macros,migrate
+
+      - run: docker compose -f tests/docker-compose.yml run -d -p 1433:1433 --name mssql_${{ matrix.mssql }} mssql_${{ matrix.mssql }}
+      - run: sleep 60
+
+      # Create data dir for offline mode
+      - run: mkdir .sqlx
+
+      - run: >
+          cargo test
+          --no-default-features
+          --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
+        env:
+          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx
+          SQLX_OFFLINE_DIR: .sqlx
+          RUSTFLAGS: --cfg mssql_${{ matrix.mssql }}
+
+      # Run the `test-attr` test again to cover cleanup.
+      - run: >
+          cargo test
+          --test mssql-test-attr
+          --no-default-features
+          --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
+        env:
+          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx
+          SQLX_OFFLINE_DIR: .sqlx
+          RUSTFLAGS: --cfg mssql_${{ matrix.mssql }}
+
+      # Remove test artifacts
+      - run: cargo clean -p sqlx
+
+      # Build the macros-test in offline mode (omit DATABASE_URL)
+      - run: >
+          cargo build
+          --no-default-features
+          --test mssql-macros
+          --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
+        env:
+          SQLX_OFFLINE: true
+          SQLX_OFFLINE_DIR: .sqlx
+          RUSTFLAGS: -D warnings --cfg mssql_${{ matrix.mssql }}
+
+      # Test macros in offline mode (still needs DATABASE_URL to run)
+      - run: >
+          cargo test
+          --no-default-features
+          --test mssql-macros
+          --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
+        env:
+          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx
+          SQLX_OFFLINE: true
+          SQLX_OFFLINE_DIR: .sqlx
+          RUSTFLAGS: --cfg mssql_${{ matrix.mssql }}
