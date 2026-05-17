@@ -32,6 +32,11 @@ impl Decode<'_, Mssql> for BigDecimal {
     fn decode(value: MssqlValueRef<'_>) -> Result<Self, BoxDynError> {
         match value.data {
             MssqlData::BigDecimal(ref v) => Ok(v.clone()),
+            #[cfg(feature = "rust_decimal")]
+            MssqlData::Decimal(v) => v
+                .to_string()
+                .parse::<BigDecimal>()
+                .map_err(|e| format!("failed to convert Decimal to BigDecimal: {e}").into()),
             MssqlData::I32(v) => Ok(BigDecimal::from(*v)),
             MssqlData::I64(v) => Ok(BigDecimal::from(*v)),
             MssqlData::F64(v) => bigdecimal::FromPrimitive::from_f64(*v)

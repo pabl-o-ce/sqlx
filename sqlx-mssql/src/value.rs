@@ -30,15 +30,23 @@ pub(crate) enum MssqlData {
     Uuid(uuid::Uuid),
     #[cfg(feature = "rust_decimal")]
     Decimal(rust_decimal::Decimal),
-    #[cfg(all(feature = "time", not(feature = "chrono")))]
+    // When `chrono` is also enabled, `column_data_to_mssql_data` routes wire
+    // data into the chrono variants, so these are unreachable; the `time::*`
+    // decode impls still need them to compile when only `time` is on.
+    #[cfg(feature = "time")]
+    #[cfg_attr(feature = "chrono", allow(dead_code))]
     TimeDate(time::Date),
-    #[cfg(all(feature = "time", not(feature = "chrono")))]
+    #[cfg(feature = "time")]
+    #[cfg_attr(feature = "chrono", allow(dead_code))]
     TimeTime(time::Time),
-    #[cfg(all(feature = "time", not(feature = "chrono")))]
+    #[cfg(feature = "time")]
+    #[cfg_attr(feature = "chrono", allow(dead_code))]
     TimePrimitiveDateTime(time::PrimitiveDateTime),
-    #[cfg(all(feature = "time", not(feature = "chrono")))]
+    #[cfg(feature = "time")]
+    #[cfg_attr(feature = "chrono", allow(dead_code))]
     TimeOffsetDateTime(time::OffsetDateTime),
-    #[cfg(all(feature = "bigdecimal", not(feature = "rust_decimal")))]
+    #[cfg(feature = "bigdecimal")]
+    #[cfg_attr(feature = "rust_decimal", allow(dead_code))]
     BigDecimal(bigdecimal::BigDecimal),
 }
 
