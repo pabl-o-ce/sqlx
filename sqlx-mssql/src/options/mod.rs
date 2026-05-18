@@ -20,7 +20,7 @@ use ssl_mode::MssqlSslMode;
 ///
 /// |Parameter|Default|Description|
 /// |---------|-------|-----------|
-/// | `sslmode` / `ssl_mode` | `preferred` | SSL encryption mode: `disabled`, `login_only`, `preferred`, `required`. |
+/// | `sslmode` / `ssl_mode` | `disabled` | SSL encryption mode: `disabled`, `login_only`, `preferred`, `required`. Defaults to `disabled` because `tiberius` is built without a TLS feature. |
 /// | `encrypt` | (none) | Legacy alias: `true` maps to `required`, `false` to `disabled`. |
 /// | `trust_server_certificate` | `false` | Whether to trust the server certificate without validation. |
 /// | `trust_server_certificate_ca` | (none) | Path to a CA certificate file to validate the server certificate against. Mutually exclusive with `trust_server_certificate`. |

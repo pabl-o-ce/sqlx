@@ -7,6 +7,7 @@ use crate::Mssql;
 
 impl_type_checking!(
     Mssql {
+        bool,
         u8,
         i8,
         i16,
