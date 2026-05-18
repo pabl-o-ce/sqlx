@@ -159,7 +159,14 @@ async fn it_can_query_by_string_args() -> sqlx::Result<()> {
         FROM (SELECT 1) AS t \
         WHERE 'Hello, world!' IN ($1, $2, $3, $4, $5, $6, $7)";
 
-    #[cfg(not(feature = "postgres"))]
+    // MSSQL requires every column of a derived table to have a name (error 8155),
+    // so the inline `SELECT 1` needs an alias.
+    #[cfg(all(not(feature = "postgres"), feature = "mssql"))]
+    const SQL: &str = "SELECT 'Hello, world!' \
+        FROM (SELECT 1 AS x) AS t \
+        WHERE 'Hello, world!' IN (@p1, @p2, @p3, @p4, @p5, @p6, @p7)";
+
+    #[cfg(not(any(feature = "postgres", feature = "mssql")))]
     const SQL: &str = "SELECT 'Hello, world!' \
         FROM (SELECT 1) AS t \
         WHERE 'Hello, world!' IN (?, ?, ?, ?, ?, ?, ?)";
