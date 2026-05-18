@@ -30,6 +30,7 @@ impl Encode<'_, Mssql> for BigDecimal {
 
 impl Decode<'_, Mssql> for BigDecimal {
     fn decode(value: MssqlValueRef<'_>) -> Result<Self, BoxDynError> {
+        let type_name = value.type_info.base_name();
         match value.data {
             MssqlData::BigDecimal(ref v) => Ok(v.clone()),
             #[cfg(feature = "rust_decimal")]
@@ -39,8 +40,18 @@ impl Decode<'_, Mssql> for BigDecimal {
                 .map_err(|e| format!("failed to convert Decimal to BigDecimal: {e}").into()),
             MssqlData::I32(v) => Ok(BigDecimal::from(*v)),
             MssqlData::I64(v) => Ok(BigDecimal::from(*v)),
-            MssqlData::F64(v) => bigdecimal::FromPrimitive::from_f64(*v)
-                .ok_or_else(|| format!("failed to convert f64 {v} to BigDecimal").into()),
+            MssqlData::F64(v) => {
+                let bd: BigDecimal = bigdecimal::FromPrimitive::from_f64(*v)
+                    .ok_or_else(|| format!("failed to convert f64 {v} to BigDecimal"))?;
+                // tiberius surfaces MONEY/SMALLMONEY as `ColumnData::F64`. Both
+                // SQL Server money types have exactly 4 fractional digits, so
+                // round to that scale to strip the f64 round-trip noise.
+                Ok(if matches!(type_name, "MONEY" | "SMALLMONEY") {
+                    bd.with_scale(4)
+                } else {
+                    bd
+                })
+            }
             MssqlData::String(ref s) => s
                 .parse::<BigDecimal>()
                 .map_err(|e| format!("failed to parse BigDecimal from string: {e}").into()),

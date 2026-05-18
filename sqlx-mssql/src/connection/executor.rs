@@ -222,9 +222,12 @@ fn build_tiberius_query<'a>(
             #[cfg(feature = "chrono")]
             MssqlArgumentValue::DateTimeFixedOffset(v) => {
                 use chrono::Timelike as _;
+                // TDS DATETIMEOFFSET expects the datetime2 portion in UTC; the
+                // offset is informational. Use `naive_utc()` so the wire format
+                // matches what `CAST(... AS DATETIMEOFFSET)` produces.
                 let epoch = chrono::NaiveDate::from_ymd_opt(1, 1, 1)
                     .expect("epoch 0001-01-01 is always valid");
-                let naive = v.naive_local();
+                let naive = v.naive_utc();
                 let days = days_since_epoch_to_u32((naive.date() - epoch).num_days())?;
                 let time = naive.time();
                 let total_ns = u64::from(time.num_seconds_from_midnight()) * 1_000_000_000

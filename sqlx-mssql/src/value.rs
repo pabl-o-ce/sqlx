@@ -208,14 +208,11 @@ pub(crate) fn column_data_to_mssql_data(
             let fixed_offset = chrono::FixedOffset::east_opt(offset_secs).ok_or_else(|| {
                 Error::Protocol(format!("invalid timezone offset: {offset_secs} seconds"))
             })?;
-            let dt = naive
-                .and_local_timezone(fixed_offset)
-                .single()
-                .ok_or_else(|| {
-                    Error::Protocol(format!(
-                        "ambiguous or invalid local time for offset {offset_secs}s"
-                    ))
-                })?;
+            // TDS DATETIMEOFFSET stores the datetime2 in UTC and a separate
+            // offset for display; interpret accordingly and convert to the
+            // declared offset's local representation.
+            let utc_dt = naive.and_utc();
+            let dt = utc_dt.with_timezone(&fixed_offset);
             Ok(MssqlData::DateTimeFixedOffset(dt))
         }
 

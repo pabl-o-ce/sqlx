@@ -1,7 +1,7 @@
 extern crate time_ as time;
 
 use sqlx::mssql::Mssql;
-use sqlx_test::test_type;
+use sqlx_test::{test_decode_type, test_type};
 
 test_type!(null<Option<i32>>(Mssql,
     "CAST(NULL as INT)" == None::<i32>
@@ -142,7 +142,11 @@ test_type!(null_bytes<Option<Vec<u8>>>(Mssql,
     "CAST(NULL AS VARBINARY(MAX))" == None::<Vec<u8>>,
 ));
 
-test_type!(xml<sqlx::mssql::MssqlXml>(Mssql,
+// XML doesn't support the `=` operator in SQL Server, so the standard
+// `test_type!` template (which compares `column = @p1`) errors out with
+// "data types xml and nvarchar are incompatible in the equal to operator".
+// Use the decode-only test that just round-trips the value.
+test_decode_type!(xml<sqlx::mssql::MssqlXml>(Mssql,
     "CAST('<root><item>hello</item></root>' AS XML)"
         == sqlx::mssql::MssqlXml::from("<root><item>hello</item></root>".to_owned()),
 ));

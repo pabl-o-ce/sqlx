@@ -18,16 +18,14 @@ impl MssqlArguments {
     where
         T: Encode<'q, Mssql> + Type<Mssql>,
     {
+        // Detect "encoder reported null without pushing" by comparing len()
+        // before and after — the previous check used `last() is Null`, which
+        // mistakenly dropped a Null bind whenever the previous parameter was
+        // also Null (e.g. `bind(None).bind(None)`).
+        let before = self.values.len();
         let is_null = value.encode(&mut self.values)?;
-        if is_null.is_null() {
-            // If the encoder signaled null but didn't push a value, push a Null
-            if self
-                .values
-                .last()
-                .is_none_or(|v| !matches!(v, MssqlArgumentValue::Null))
-            {
-                self.values.push(MssqlArgumentValue::Null);
-            }
+        if is_null.is_null() && self.values.len() == before {
+            self.values.push(MssqlArgumentValue::Null);
         }
         Ok(())
     }
