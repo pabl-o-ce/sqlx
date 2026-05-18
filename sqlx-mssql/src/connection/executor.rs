@@ -131,193 +131,28 @@ impl MssqlConnection {
 
         let mut results = Vec::new();
 
-        if let Some(args) = arguments {
-            // Parameterized query using tiberius::Query
-            let mut query = tiberius::Query::new(sql);
+        // `sqlx::query()` initializes arguments to `Some(empty)`, so checking
+        // `arguments.is_some()` isn't enough — go through `Query::query`
+        // (RPC / `sp_executesql`) only when there are *actual* bind values.
+        // The RPC path scopes `#temp` tables and transactions to the call,
+        // which breaks tests that create session-state in one statement and
+        // read it from the next.
+        let parameterized = arguments
+            .as_ref()
+            .map(|a| !a.values.is_empty())
+            .unwrap_or(false);
 
-            for arg in &args.values {
-                match arg {
-                    MssqlArgumentValue::Null => {
-                        query.bind(Option::<&str>::None);
-                    }
-                    MssqlArgumentValue::Bool(v) => {
-                        query.bind(*v);
-                    }
-                    MssqlArgumentValue::U8(v) => {
-                        query.bind(*v);
-                    }
-                    MssqlArgumentValue::I16(v) => {
-                        query.bind(*v);
-                    }
-                    MssqlArgumentValue::I32(v) => {
-                        query.bind(*v);
-                    }
-                    MssqlArgumentValue::I64(v) => {
-                        query.bind(*v);
-                    }
-                    MssqlArgumentValue::F32(v) => {
-                        query.bind(*v);
-                    }
-                    MssqlArgumentValue::F64(v) => {
-                        query.bind(*v);
-                    }
-                    MssqlArgumentValue::String(v) => {
-                        query.bind(v.as_str());
-                    }
-                    MssqlArgumentValue::Binary(v) => {
-                        query.bind(v.as_slice());
-                    }
-                    #[cfg(feature = "chrono")]
-                    MssqlArgumentValue::NaiveDateTime(v) => {
-                        query.bind(*v);
-                    }
-                    #[cfg(feature = "chrono")]
-                    MssqlArgumentValue::NaiveDate(v) => {
-                        query.bind(*v);
-                    }
-                    #[cfg(feature = "chrono")]
-                    MssqlArgumentValue::NaiveTime(v) => {
-                        query.bind(*v);
-                    }
-                    #[cfg(feature = "chrono")]
-                    MssqlArgumentValue::DateTimeFixedOffset(v) => {
-                        use chrono::Timelike as _;
-                        let epoch = chrono::NaiveDate::from_ymd_opt(1, 1, 1)
-                            .expect("epoch 0001-01-01 is always valid");
-                        let naive = v.naive_local();
-                        let days = days_since_epoch_to_u32((naive.date() - epoch).num_days())?;
-                        let time = naive.time();
-                        let total_ns = u64::from(time.num_seconds_from_midnight()) * 1_000_000_000
-                            + (u64::from(time.nanosecond()) % 1_000_000_000);
-                        let increments = total_ns / 100;
-                        let offset_minutes = v.offset().local_minus_utc() / 60;
-                        let dt2 = tiberius::time::DateTime2::new(
-                            tiberius::time::Date::new(days),
-                            tiberius::time::Time::new(increments, 7),
-                        );
-                        let cd = tiberius::ColumnData::DateTimeOffset(Some(
-                            tiberius::time::DateTimeOffset::new(
-                                dt2,
-                                offset_minutes_to_i16(offset_minutes)?,
-                            ),
-                        ));
-                        query.bind(ColumnDataWrapper(cd));
-                    }
-                    #[cfg(feature = "uuid")]
-                    MssqlArgumentValue::Uuid(v) => {
-                        query.bind(v);
-                    }
-                    #[cfg(feature = "rust_decimal")]
-                    MssqlArgumentValue::Decimal(v) => {
-                        let unpacked = v.unpack();
-                        // SAFETY: rust_decimal mantissa is ≤96 bits (hi:mid:lo are u32s), fits in i128.
-                        #[allow(clippy::cast_possible_wrap)]
-                        let mut value = (((unpacked.hi as u128) << 64)
-                            + ((unpacked.mid as u128) << 32)
-                            + unpacked.lo as u128) as i128;
-                        if v.is_sign_negative() {
-                            value = -value;
-                        }
-                        let scale = v.scale();
-                        if scale > 37 {
-                            return Err(Error::Encode(
-                                format!(
-                                    "rust_decimal scale {scale} exceeds SQL Server maximum of 37"
-                                )
-                                .into(),
-                            ));
-                        }
-                        // SAFETY: guarded by `scale > 37` check above; 0..=37 fits in u8.
-                        #[allow(clippy::cast_possible_truncation)]
-                        let scale_u8 = scale as u8;
-                        query.bind(tiberius::numeric::Numeric::new_with_scale(value, scale_u8));
-                    }
-                    #[cfg(feature = "time")]
-                    MssqlArgumentValue::TimeDate(v) => {
-                        let epoch = time::Date::from_ordinal_date(1, 1)
-                            .expect("epoch 0001-01-01 is always valid");
-                        let days = days_since_epoch_to_u32((*v - epoch).whole_days())?;
-                        let cd = tiberius::ColumnData::Date(Some(tiberius::time::Date::new(days)));
-                        query.bind(ColumnDataWrapper(cd));
-                    }
-                    #[cfg(feature = "time")]
-                    MssqlArgumentValue::TimeTime(v) => {
-                        let (h, m, s, ns) = v.as_hms_nano();
-                        let total_ns = u64::from(h) * 3_600_000_000_000
-                            + u64::from(m) * 60_000_000_000
-                            + u64::from(s) * 1_000_000_000
-                            + u64::from(ns);
-                        // Scale 7 = 100ns increments
-                        let increments = total_ns / 100;
-                        let cd = tiberius::ColumnData::Time(Some(tiberius::time::Time::new(
-                            increments, 7,
-                        )));
-                        query.bind(ColumnDataWrapper(cd));
-                    }
-                    #[cfg(feature = "time")]
-                    MssqlArgumentValue::TimePrimitiveDateTime(v) => {
-                        let date = v.date();
-                        let time = v.time();
-                        let epoch = time::Date::from_ordinal_date(1, 1)
-                            .expect("epoch 0001-01-01 is always valid");
-                        let days = days_since_epoch_to_u32((date - epoch).whole_days())?;
-                        let (h, m, s, ns) = time.as_hms_nano();
-                        let total_ns = u64::from(h) * 3_600_000_000_000
-                            + u64::from(m) * 60_000_000_000
-                            + u64::from(s) * 1_000_000_000
-                            + u64::from(ns);
-                        let increments = total_ns / 100;
-                        let cd =
-                            tiberius::ColumnData::DateTime2(Some(tiberius::time::DateTime2::new(
-                                tiberius::time::Date::new(days),
-                                tiberius::time::Time::new(increments, 7),
-                            )));
-                        query.bind(ColumnDataWrapper(cd));
-                    }
-                    #[cfg(feature = "time")]
-                    MssqlArgumentValue::TimeOffsetDateTime(v) => {
-                        let epoch = time::Date::from_ordinal_date(1, 1)
-                            .expect("epoch 0001-01-01 is always valid");
-                        let offset_minutes = v.offset().whole_seconds() / 60;
-                        let date = v.date();
-                        let time = v.time();
-                        let days = days_since_epoch_to_u32((date - epoch).whole_days())?;
-                        let (h, m, s, ns) = time.as_hms_nano();
-                        let total_ns = u64::from(h) * 3_600_000_000_000
-                            + u64::from(m) * 60_000_000_000
-                            + u64::from(s) * 1_000_000_000
-                            + u64::from(ns);
-                        let increments = total_ns / 100;
-                        let dt2 = tiberius::time::DateTime2::new(
-                            tiberius::time::Date::new(days),
-                            tiberius::time::Time::new(increments, 7),
-                        );
-                        let cd = tiberius::ColumnData::DateTimeOffset(Some(
-                            tiberius::time::DateTimeOffset::new(
-                                dt2,
-                                offset_minutes_to_i16(offset_minutes)?,
-                            ),
-                        ));
-                        query.bind(ColumnDataWrapper(cd));
-                    }
-                    #[cfg(feature = "bigdecimal")]
-                    MssqlArgumentValue::BigDecimal(v) => {
-                        let (value, scale) = bigdecimal_to_numeric(v)?;
-                        let cd = tiberius::ColumnData::Numeric(Some(
-                            tiberius::numeric::Numeric::new_with_scale(value, scale),
-                        ));
-                        query.bind(ColumnDataWrapper(cd));
-                    }
-                }
-            }
-
+        if parameterized {
+            let args = arguments.expect("parameterized implies Some(args)");
+            let query = build_tiberius_query(sql, &args)?;
             let stream = query
                 .query(&mut self.inner.client)
                 .await
                 .map_err(tiberius_err)?;
             collect_results(stream, &mut results, &mut logger).await?;
         } else {
-            // Simple query (no parameters)
+            // Simple query (no parameters) — batch execution keeps session
+            // state visible across statements.
             let stream = self
                 .inner
                 .client
@@ -329,6 +164,191 @@ impl MssqlConnection {
 
         Ok(results)
     }
+
+}
+
+/// Build a parameterized `tiberius::Query` from a SQL string and our
+/// `MssqlArguments`. The returned `Query` borrows from `args`, so it must
+/// not outlive `args`.
+fn build_tiberius_query<'a>(
+    sql: &'a str,
+    args: &'a MssqlArguments,
+) -> Result<tiberius::Query<'a>, Error> {
+    let mut query = tiberius::Query::new(sql);
+
+    for arg in &args.values {
+        match arg {
+            MssqlArgumentValue::Null => {
+                query.bind(Option::<&str>::None);
+            }
+            MssqlArgumentValue::Bool(v) => {
+                query.bind(*v);
+            }
+            MssqlArgumentValue::U8(v) => {
+                query.bind(*v);
+            }
+            MssqlArgumentValue::I16(v) => {
+                query.bind(*v);
+            }
+            MssqlArgumentValue::I32(v) => {
+                query.bind(*v);
+            }
+            MssqlArgumentValue::I64(v) => {
+                query.bind(*v);
+            }
+            MssqlArgumentValue::F32(v) => {
+                query.bind(*v);
+            }
+            MssqlArgumentValue::F64(v) => {
+                query.bind(*v);
+            }
+            MssqlArgumentValue::String(v) => {
+                query.bind(v.as_str());
+            }
+            MssqlArgumentValue::Binary(v) => {
+                query.bind(v.as_slice());
+            }
+            #[cfg(feature = "chrono")]
+            MssqlArgumentValue::NaiveDateTime(v) => {
+                query.bind(*v);
+            }
+            #[cfg(feature = "chrono")]
+            MssqlArgumentValue::NaiveDate(v) => {
+                query.bind(*v);
+            }
+            #[cfg(feature = "chrono")]
+            MssqlArgumentValue::NaiveTime(v) => {
+                query.bind(*v);
+            }
+            #[cfg(feature = "chrono")]
+            MssqlArgumentValue::DateTimeFixedOffset(v) => {
+                use chrono::Timelike as _;
+                let epoch = chrono::NaiveDate::from_ymd_opt(1, 1, 1)
+                    .expect("epoch 0001-01-01 is always valid");
+                let naive = v.naive_local();
+                let days = days_since_epoch_to_u32((naive.date() - epoch).num_days())?;
+                let time = naive.time();
+                let total_ns = u64::from(time.num_seconds_from_midnight()) * 1_000_000_000
+                    + (u64::from(time.nanosecond()) % 1_000_000_000);
+                let increments = total_ns / 100;
+                let offset_minutes = v.offset().local_minus_utc() / 60;
+                let dt2 = tiberius::time::DateTime2::new(
+                    tiberius::time::Date::new(days),
+                    tiberius::time::Time::new(increments, 7),
+                );
+                let cd = tiberius::ColumnData::DateTimeOffset(Some(
+                    tiberius::time::DateTimeOffset::new(
+                        dt2,
+                        offset_minutes_to_i16(offset_minutes)?,
+                    ),
+                ));
+                query.bind(ColumnDataWrapper(cd));
+            }
+            #[cfg(feature = "uuid")]
+            MssqlArgumentValue::Uuid(v) => {
+                query.bind(v);
+            }
+            #[cfg(feature = "rust_decimal")]
+            MssqlArgumentValue::Decimal(v) => {
+                let unpacked = v.unpack();
+                // SAFETY: rust_decimal mantissa is ≤96 bits (hi:mid:lo are u32s), fits in i128.
+                #[allow(clippy::cast_possible_wrap)]
+                let mut value = (((unpacked.hi as u128) << 64)
+                    + ((unpacked.mid as u128) << 32)
+                    + unpacked.lo as u128) as i128;
+                if v.is_sign_negative() {
+                    value = -value;
+                }
+                let scale = v.scale();
+                if scale > 37 {
+                    return Err(Error::Encode(
+                        format!("rust_decimal scale {scale} exceeds SQL Server maximum of 37")
+                            .into(),
+                    ));
+                }
+                // SAFETY: guarded by `scale > 37` check above; 0..=37 fits in u8.
+                #[allow(clippy::cast_possible_truncation)]
+                let scale_u8 = scale as u8;
+                query.bind(tiberius::numeric::Numeric::new_with_scale(value, scale_u8));
+            }
+            #[cfg(feature = "time")]
+            MssqlArgumentValue::TimeDate(v) => {
+                let epoch = time::Date::from_ordinal_date(1, 1)
+                    .expect("epoch 0001-01-01 is always valid");
+                let days = days_since_epoch_to_u32((*v - epoch).whole_days())?;
+                let cd = tiberius::ColumnData::Date(Some(tiberius::time::Date::new(days)));
+                query.bind(ColumnDataWrapper(cd));
+            }
+            #[cfg(feature = "time")]
+            MssqlArgumentValue::TimeTime(v) => {
+                let (h, m, s, ns) = v.as_hms_nano();
+                let total_ns = u64::from(h) * 3_600_000_000_000
+                    + u64::from(m) * 60_000_000_000
+                    + u64::from(s) * 1_000_000_000
+                    + u64::from(ns);
+                // Scale 7 = 100ns increments
+                let increments = total_ns / 100;
+                let cd =
+                    tiberius::ColumnData::Time(Some(tiberius::time::Time::new(increments, 7)));
+                query.bind(ColumnDataWrapper(cd));
+            }
+            #[cfg(feature = "time")]
+            MssqlArgumentValue::TimePrimitiveDateTime(v) => {
+                let date = v.date();
+                let time = v.time();
+                let epoch = time::Date::from_ordinal_date(1, 1)
+                    .expect("epoch 0001-01-01 is always valid");
+                let days = days_since_epoch_to_u32((date - epoch).whole_days())?;
+                let (h, m, s, ns) = time.as_hms_nano();
+                let total_ns = u64::from(h) * 3_600_000_000_000
+                    + u64::from(m) * 60_000_000_000
+                    + u64::from(s) * 1_000_000_000
+                    + u64::from(ns);
+                let increments = total_ns / 100;
+                let cd = tiberius::ColumnData::DateTime2(Some(tiberius::time::DateTime2::new(
+                    tiberius::time::Date::new(days),
+                    tiberius::time::Time::new(increments, 7),
+                )));
+                query.bind(ColumnDataWrapper(cd));
+            }
+            #[cfg(feature = "time")]
+            MssqlArgumentValue::TimeOffsetDateTime(v) => {
+                let epoch = time::Date::from_ordinal_date(1, 1)
+                    .expect("epoch 0001-01-01 is always valid");
+                let offset_minutes = v.offset().whole_seconds() / 60;
+                let date = v.date();
+                let time = v.time();
+                let days = days_since_epoch_to_u32((date - epoch).whole_days())?;
+                let (h, m, s, ns) = time.as_hms_nano();
+                let total_ns = u64::from(h) * 3_600_000_000_000
+                    + u64::from(m) * 60_000_000_000
+                    + u64::from(s) * 1_000_000_000
+                    + u64::from(ns);
+                let increments = total_ns / 100;
+                let dt2 = tiberius::time::DateTime2::new(
+                    tiberius::time::Date::new(days),
+                    tiberius::time::Time::new(increments, 7),
+                );
+                let cd = tiberius::ColumnData::DateTimeOffset(Some(
+                    tiberius::time::DateTimeOffset::new(
+                        dt2,
+                        offset_minutes_to_i16(offset_minutes)?,
+                    ),
+                ));
+                query.bind(ColumnDataWrapper(cd));
+            }
+            #[cfg(feature = "bigdecimal")]
+            MssqlArgumentValue::BigDecimal(v) => {
+                let (value, scale) = bigdecimal_to_numeric(v)?;
+                let cd = tiberius::ColumnData::Numeric(Some(
+                    tiberius::numeric::Numeric::new_with_scale(value, scale),
+                ));
+                query.bind(ColumnDataWrapper(cd));
+            }
+        }
+    }
+
+    Ok(query)
 }
 
 /// Collect all results from a tiberius QueryStream into a Vec.
@@ -337,14 +357,25 @@ async fn collect_results(
     results: &mut Vec<Either<MssqlQueryResult, MssqlRow>>,
     logger: &mut QueryLogger,
 ) -> Result<(), Error> {
-    // Process all result sets
+    // Process all result sets. SELECT-style statements produce row data; we
+    // emit one `Either::Left(MssqlQueryResult)` per result set boundary so
+    // callers can tell where one set ends and the next begins. Tiberius's
+    // `QueryStream` doesn't expose Done tokens, so we can't report the true
+    // server-side rows-affected count here — that's handled by the
+    // `Executor::execute_many` override which uses `tiberius::Query::execute`.
     let mut columns: Option<Arc<Vec<MssqlColumn>>> = None;
     let mut column_names: Option<Arc<HashMap<UStr, usize>>> = None;
-    let mut rows_affected: u64 = 0;
 
     while let Some(item) = stream.try_next().await.map_err(tiberius_err)? {
         match item {
             tiberius::QueryItem::Metadata(meta) => {
+                // A new Metadata after we've already seen one closes the
+                // previous result set — emit a Left marker so multi-resultset
+                // callers can split the row stream.
+                if columns.is_some() {
+                    results.push(Either::Left(MssqlQueryResult { rows_affected: 0 }));
+                }
+
                 // Build column info from metadata
                 let cols: Vec<MssqlColumn> = meta
                     .columns()
@@ -386,7 +417,6 @@ async fn collect_results(
                     .map(column_data_to_mssql_data)
                     .collect::<Result<Vec<_>, _>>()?;
 
-                rows_affected += 1;
                 logger.increment_rows_returned();
                 results.push(Either::Right(MssqlRow {
                     values,
@@ -397,9 +427,9 @@ async fn collect_results(
         }
     }
 
-    // Report query result with total rows
-    logger.increase_rows_affected(rows_affected);
-    results.push(Either::Left(MssqlQueryResult { rows_affected }));
+    // Always emit a final Left — closes the last result set if any, or
+    // signals "query completed" for a statement that produced none.
+    results.push(Either::Left(MssqlQueryResult { rows_affected: 0 }));
 
     Ok(())
 }
@@ -418,7 +448,13 @@ fn build_columns_from_describe_rows(
     for (ordinal, row) in rows.iter().enumerate() {
         let name: &str = row.get("name").unwrap_or("");
         let type_name: &str = row.get("system_type_name").unwrap_or("UNKNOWN");
-        let type_info = MssqlTypeInfo::new(type_name.to_uppercase());
+        // `system_type_name` is the full type like `nvarchar(4000)` or
+        // `decimal(10,2)`. Strip the parenthesized precision/scale so
+        // `MssqlTypeInfo::name()` returns the bare type — matching
+        // `type_name_for_tiberius` and the manual `MssqlTypeInfo::new(...)`
+        // calls in `types/*`.
+        let bare = type_name.split('(').next().unwrap_or(type_name).trim();
+        let type_info = MssqlTypeInfo::new(bare.to_uppercase());
         let is_nullable: Option<bool> = row.get("is_nullable");
 
         let source_table: Option<&str> = row.get("source_table");
@@ -483,6 +519,15 @@ impl<'c> Executor<'c> for &'c mut MssqlConnection {
             .try_flatten(),
         )
     }
+
+    // NOTE: not overriding `execute_many` here. tiberius's `Query::execute`
+    // uses `sp_executesql` (RPC), which scopes `#temp` tables and transaction
+    // state to the call, not the session — that breaks anything that creates
+    // session-scoped state. The trade-off is that `rows_affected` is not
+    // currently surfaced for non-SELECT statements (the fallback `fetch_many`
+    // path uses `tiberius::QueryStream`, which doesn't expose Done tokens).
+    // TODO: revisit once tiberius exposes Done tokens, or wire up a hybrid
+    // path that uses batch execution for sessionful statements.
 
     fn fetch_optional<'e, 'q, E>(self, query: E) -> BoxFuture<'e, Result<Option<MssqlRow>, Error>>
     where
