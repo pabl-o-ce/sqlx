@@ -82,6 +82,13 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
         after_release_calls: i32,
     }
 
+    // MSSQL session-scoped temp tables use the `#` prefix instead of a
+    // `TEMPORARY` keyword, which it doesn't recognize.
+    #[cfg(all(not(feature = "postgres"), feature = "mssql"))]
+    const CONN_STATS: &str = "#conn_stats";
+    #[cfg(not(all(not(feature = "postgres"), feature = "mssql")))]
+    const CONN_STATS: &str = "conn_stats";
+
     sqlx_test::setup_if_needed();
 
     let conn_options: AnyConnectOptions = std::env::var("DATABASE_URL")?.parse()?;
@@ -98,18 +105,19 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
             let id = current_id.fetch_add(1, Ordering::AcqRel);
 
             Box::pin(async move {
+                #[cfg(all(not(feature = "postgres"), feature = "mssql"))]
+                let create_kw = "TABLE";
+                #[cfg(not(all(not(feature = "postgres"), feature = "mssql")))]
+                let create_kw = "TEMPORARY TABLE";
+
                 let statement = format!(
                     // language=SQL
-                    r#"
-                    CREATE TEMPORARY TABLE conn_stats(
+                    "CREATE {create_kw} {CONN_STATS}(
                         id int primary key,
                         before_acquire_calls int default 0,
                         after_release_calls int default 0
                     );
-                    INSERT INTO conn_stats(id) VALUES ({});
-                    "#,
-                    // Until we have generalized bind parameters
-                    id
+                    INSERT INTO {CONN_STATS}(id) VALUES ({id});"
                 );
 
                 conn.execute(AssertSqlSafe(statement)).await?;
@@ -123,18 +131,16 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
 
             Box::pin(async move {
                 // MySQL and MariaDB don't support UPDATE ... RETURNING
-                sqlx::query(
-                    r#"
-                        UPDATE conn_stats
-                        SET before_acquire_calls = before_acquire_calls + 1
-                    "#,
-                )
+                sqlx::query(AssertSqlSafe(format!(
+                    "UPDATE {CONN_STATS} SET before_acquire_calls = before_acquire_calls + 1"
+                )))
                 .execute(&mut *conn)
                 .await?;
 
-                let stats: ConnStats = sqlx::query_as("SELECT * FROM conn_stats")
-                    .fetch_one(conn)
-                    .await?;
+                let stats: ConnStats =
+                    sqlx::query_as(AssertSqlSafe(format!("SELECT * FROM {CONN_STATS}")))
+                        .fetch_one(conn)
+                        .await?;
 
                 // For even IDs, cap by the number of before_acquire calls.
                 // Ignore the check for odd IDs.
@@ -147,18 +153,16 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
             assert_eq!(meta.idle_for, Duration::ZERO);
 
             Box::pin(async move {
-                sqlx::query(
-                    r#"
-                        UPDATE conn_stats
-                        SET after_release_calls = after_release_calls + 1
-                    "#,
-                )
+                sqlx::query(AssertSqlSafe(format!(
+                    "UPDATE {CONN_STATS} SET after_release_calls = after_release_calls + 1"
+                )))
                 .execute(&mut *conn)
                 .await?;
 
-                let stats: ConnStats = sqlx::query_as("SELECT * FROM conn_stats")
-                    .fetch_one(conn)
-                    .await?;
+                let stats: ConnStats =
+                    sqlx::query_as(AssertSqlSafe(format!("SELECT * FROM {CONN_STATS}")))
+                        .fetch_one(conn)
+                        .await?;
 
                 // For odd IDs, cap by the number of before_release calls.
                 // Ignore the check for even IDs.
@@ -186,9 +190,10 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
     ];
 
     for (id, before_acquire_calls, after_release_calls) in pattern {
-        let conn_stats: ConnStats = sqlx::query_as("SELECT * FROM conn_stats")
-            .fetch_one(&pool)
-            .await?;
+        let conn_stats: ConnStats =
+            sqlx::query_as(AssertSqlSafe(format!("SELECT * FROM {CONN_STATS}")))
+                .fetch_one(&pool)
+                .await?;
 
         assert_eq!(
             conn_stats,
