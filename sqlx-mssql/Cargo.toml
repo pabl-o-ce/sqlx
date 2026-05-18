@@ -30,12 +30,12 @@ uuid = ["dep:uuid", "sqlx-core/uuid"]
 sqlx-core = { workspace = true }
 
 # TDS protocol driver
-tiberius = { version = "0.12", default-features = false, features = ["tds73"] }
+tiberius = { version = "0.12.3", default-features = false, features = ["tds73"] }
 
 # Futures crates
-futures-core = { version = "0.3.19", default-features = false }
-futures-io = "0.3.24"
-futures-util = { version = "0.3.19", default-features = false, features = ["alloc", "sink", "io"] }
+futures-core = { version = "0.3.32", default-features = false }
+futures-io = "0.3.32"
+futures-util = { version = "0.3.32", default-features = false, features = ["alloc", "sink", "io"] }
 
 # Runtime bridging
 tokio = { workspace = true, optional = true }
@@ -50,16 +50,16 @@ time = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 
 # Misc
-bytes = "1.1.0"
+bytes = "1.2.0"
 either = "1.6.1"
 log = "0.4.18"
 tracing = { version = "0.1.37", features = ["log"] }
-percent-encoding = "2.1.0"
+percent-encoding = "2.3.0"
 
 dotenvy.workspace = true
 thiserror.workspace = true
 
-serde = { version = "1.0.144", optional = true }
+serde = { version = "1.0.219", optional = true }
 
 [dev-dependencies]
 # FIXME: https://github.com/rust-lang/cargo/issues/15622

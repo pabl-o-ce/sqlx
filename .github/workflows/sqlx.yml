@@ -117,6 +117,9 @@ jobs:
           -p sqlx-sqlite
           --all-features      
 
+      - name: Install GSSAPI dev headers
+        run: sudo apt-get install -y libkrb5-dev
+
       - name: Test sqlx-mssql
         run: >
           cargo test
