@@ -468,9 +468,11 @@ async fn it_can_query_multiple_result_sets() -> anyhow::Result<()> {
     let mut conn = new::<Mssql>().await?;
 
     // A batch that produces two result sets
-    let results = conn
-        .run("SELECT 1 AS a; SELECT 2 AS b, 3 AS c;", None)
-        .await?;
+    let results: Vec<sqlx::Either<_, MssqlRow>> =
+        sqlx::raw_sql("SELECT 1 AS a; SELECT 2 AS b, 3 AS c;")
+            .fetch_many(&mut conn)
+            .try_collect()
+            .await?;
 
     // First result set: one row with column "a"
     let mut rows_first = Vec::new();
@@ -479,10 +481,10 @@ async fn it_can_query_multiple_result_sets() -> anyhow::Result<()> {
 
     for item in &results {
         match item {
-            either::Either::Left(_) => {
+            sqlx::Either::Left(_) => {
                 result_count += 1;
             }
-            either::Either::Right(row) => {
+            sqlx::Either::Right(row) => {
                 if result_count == 0 {
                     rows_first.push(row);
                 } else {
@@ -551,7 +553,7 @@ async fn it_can_bind_many_parameters() -> anyhow::Result<()> {
     let param_refs: Vec<String> = (1..=100).map(|i| format!("@p{i}")).collect();
     let sql = format!("SELECT {}", param_refs.join(" + "));
 
-    let mut query = sqlx::query_scalar::<_, i32>(&sql);
+    let mut query = sqlx::query_scalar::<_, i32>(sqlx::AssertSqlSafe(sql));
     for _ in 0..100 {
         query = query.bind(1_i32);
     }
