@@ -152,8 +152,8 @@ fn chrono_to_time_date(d: chrono::NaiveDate) -> Result<Date, BoxDynError> {
         .ok()
         .and_then(|m| time::Month::try_from(m).ok())
         .ok_or_else(|| format!("invalid month value from chrono: {}", d.month()))?;
-    let day = u8::try_from(d.day())
-        .map_err(|_| format!("invalid day value from chrono: {}", d.day()))?;
+    let day =
+        u8::try_from(d.day()).map_err(|_| format!("invalid day value from chrono: {}", d.day()))?;
     Date::from_calendar_date(d.year(), month, day)
         .map_err(|e| format!("failed to convert chrono::NaiveDate to time::Date: {e}").into())
 }
