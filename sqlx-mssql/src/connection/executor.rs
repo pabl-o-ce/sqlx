@@ -164,7 +164,6 @@ impl MssqlConnection {
 
         Ok(results)
     }
-
 }
 
 /// Build a parameterized `tiberius::Query` from a SQL string and our
@@ -273,8 +272,8 @@ fn build_tiberius_query<'a>(
             }
             #[cfg(feature = "time")]
             MssqlArgumentValue::TimeDate(v) => {
-                let epoch = time::Date::from_ordinal_date(1, 1)
-                    .expect("epoch 0001-01-01 is always valid");
+                let epoch =
+                    time::Date::from_ordinal_date(1, 1).expect("epoch 0001-01-01 is always valid");
                 let days = days_since_epoch_to_u32((*v - epoch).whole_days())?;
                 let cd = tiberius::ColumnData::Date(Some(tiberius::time::Date::new(days)));
                 query.bind(ColumnDataWrapper(cd));
@@ -288,16 +287,15 @@ fn build_tiberius_query<'a>(
                     + u64::from(ns);
                 // Scale 7 = 100ns increments
                 let increments = total_ns / 100;
-                let cd =
-                    tiberius::ColumnData::Time(Some(tiberius::time::Time::new(increments, 7)));
+                let cd = tiberius::ColumnData::Time(Some(tiberius::time::Time::new(increments, 7)));
                 query.bind(ColumnDataWrapper(cd));
             }
             #[cfg(feature = "time")]
             MssqlArgumentValue::TimePrimitiveDateTime(v) => {
                 let date = v.date();
                 let time = v.time();
-                let epoch = time::Date::from_ordinal_date(1, 1)
-                    .expect("epoch 0001-01-01 is always valid");
+                let epoch =
+                    time::Date::from_ordinal_date(1, 1).expect("epoch 0001-01-01 is always valid");
                 let days = days_since_epoch_to_u32((date - epoch).whole_days())?;
                 let (h, m, s, ns) = time.as_hms_nano();
                 let total_ns = u64::from(h) * 3_600_000_000_000
@@ -313,8 +311,8 @@ fn build_tiberius_query<'a>(
             }
             #[cfg(feature = "time")]
             MssqlArgumentValue::TimeOffsetDateTime(v) => {
-                let epoch = time::Date::from_ordinal_date(1, 1)
-                    .expect("epoch 0001-01-01 is always valid");
+                let epoch =
+                    time::Date::from_ordinal_date(1, 1).expect("epoch 0001-01-01 is always valid");
                 let offset_minutes = v.offset().whole_seconds() / 60;
                 let date = v.date();
                 let time = v.time();
