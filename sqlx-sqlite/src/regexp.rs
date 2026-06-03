@@ -138,7 +138,7 @@ unsafe fn get_regex_from_arg(
 
 /// Get a text reference of the value of `arg`. Returns `None` for NULL values.
 ///
-/// For non-NULL values, `sqlite3_value_text()` is called directly, which lets SQLite
+/// For non-NULL values, `sqlite3_value_text()` is called directly, which lets `SQLite`
 /// coerce INTEGER, REAL, and BLOB values to their text representation. This matches
 /// the coercion behavior documented at <https://www.sqlite.org/c3ref/value_blob.html>.
 ///
