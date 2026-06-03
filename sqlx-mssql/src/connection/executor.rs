@@ -273,7 +273,10 @@ fn bind_arguments<'a>(
                     tiberius::time::Time::new(increments, 7),
                 );
                 let cd = tiberius::ColumnData::DateTimeOffset(Some(
-                    tiberius::time::DateTimeOffset::new(dt2, offset_minutes_to_i16(offset_minutes)?),
+                    tiberius::time::DateTimeOffset::new(
+                        dt2,
+                        offset_minutes_to_i16(offset_minutes)?,
+                    ),
                 ));
                 query.bind(ColumnDataWrapper(cd));
             }
@@ -306,8 +309,8 @@ fn bind_arguments<'a>(
             }
             #[cfg(feature = "time")]
             MssqlArgumentValue::TimeDate(v) => {
-                let epoch = time::Date::from_ordinal_date(1, 1)
-                    .expect("epoch 0001-01-01 is always valid");
+                let epoch =
+                    time::Date::from_ordinal_date(1, 1).expect("epoch 0001-01-01 is always valid");
                 let days = days_since_epoch_to_u32((*v - epoch).whole_days())?;
                 let cd = tiberius::ColumnData::Date(Some(tiberius::time::Date::new(days)));
                 query.bind(ColumnDataWrapper(cd));
@@ -328,8 +331,8 @@ fn bind_arguments<'a>(
             MssqlArgumentValue::TimePrimitiveDateTime(v) => {
                 let date = v.date();
                 let time = v.time();
-                let epoch = time::Date::from_ordinal_date(1, 1)
-                    .expect("epoch 0001-01-01 is always valid");
+                let epoch =
+                    time::Date::from_ordinal_date(1, 1).expect("epoch 0001-01-01 is always valid");
                 let days = days_since_epoch_to_u32((date - epoch).whole_days())?;
                 let (h, m, s, ns) = time.as_hms_nano();
                 let total_ns = u64::from(h) * 3_600_000_000_000
@@ -345,8 +348,8 @@ fn bind_arguments<'a>(
             }
             #[cfg(feature = "time")]
             MssqlArgumentValue::TimeOffsetDateTime(v) => {
-                let epoch = time::Date::from_ordinal_date(1, 1)
-                    .expect("epoch 0001-01-01 is always valid");
+                let epoch =
+                    time::Date::from_ordinal_date(1, 1).expect("epoch 0001-01-01 is always valid");
                 let offset_minutes = v.offset().whole_seconds() / 60;
                 let date = v.date();
                 let time = v.time();
@@ -362,7 +365,10 @@ fn bind_arguments<'a>(
                     tiberius::time::Time::new(increments, 7),
                 );
                 let cd = tiberius::ColumnData::DateTimeOffset(Some(
-                    tiberius::time::DateTimeOffset::new(dt2, offset_minutes_to_i16(offset_minutes)?),
+                    tiberius::time::DateTimeOffset::new(
+                        dt2,
+                        offset_minutes_to_i16(offset_minutes)?,
+                    ),
                 ));
                 query.bind(ColumnDataWrapper(cd));
             }
@@ -533,10 +539,7 @@ impl<'c> Executor<'c> for &'c mut MssqlConnection {
         )
     }
 
-    fn execute_many<'e, 'q, E>(
-        self,
-        mut query: E,
-    ) -> BoxStream<'e, Result<MssqlQueryResult, Error>>
+    fn execute_many<'e, 'q, E>(self, mut query: E) -> BoxStream<'e, Result<MssqlQueryResult, Error>>
     where
         'c: 'e,
         E: Execute<'q, Self::Database>,
