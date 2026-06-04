@@ -11,6 +11,9 @@
   <!-- Github Actions -->
   <a href="https://github.com/launchbadge/sqlx/actions/workflows/sqlx.yml?query=branch%3Amain">
     <img src="https://img.shields.io/github/actions/workflow/status/launchbadge/sqlx/sqlx.yml?branch=main&style=flat-square" alt="actions status" /></a>
+  <!-- MSSQL fork CI (this fork) -->
+  <a href="https://github.com/pabl-o-ce/sqlx/actions/workflows/mssql.yml?query=branch%3Amain">
+    <img src="https://img.shields.io/github/actions/workflow/status/pabl-o-ce/sqlx/mssql.yml?branch=main&style=flat-square&label=mssql%20ci" alt="MSSQL CI status" /></a>
   <!-- Version -->
   <a href="https://crates.io/crates/sqlx">
     <img src="https://img.shields.io/crates/v/sqlx.svg?style=flat-square"
@@ -26,6 +29,14 @@
     <img src="https://img.shields.io/crates/d/sqlx.svg?style=flat-square" alt="Download" />
   </a>
 </div>
+
+<br />
+
+> **Fork note:** This is an **MSSQL (SQL Server)-focused fork** of SQLx. The
+> **`mssql ci`** badge above tracks the dedicated
+> [`MSSQL CI`](.github/workflows/mssql.yml) workflow — watch it to know whether
+> the MSSQL driver changes are passing. The upstream multi-database workflows
+> are left as-is.
 
 <div align="center">
   <h4>
