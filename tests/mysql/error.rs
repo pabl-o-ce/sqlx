@@ -6,7 +6,7 @@ fn mysql_supports_check_constraints(version: &str) -> bool {
         return true;
     }
 
-    let numeric = match version.split(|c| c == '-' || c == ' ').next() {
+    let numeric = match version.split(['-', ' ']).next() {
         Some(numeric) => numeric,
         None => return false,
     };

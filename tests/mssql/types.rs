@@ -1,3 +1,7 @@
+// Several `test_type!` cases use float literals close to PI / with more
+// precision than the type holds, on purpose, to exercise round-tripping.
+#![allow(clippy::approx_constant, clippy::excessive_precision)]
+
 extern crate time_ as time;
 
 use sqlx::mssql::Mssql;

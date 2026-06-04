@@ -1,3 +1,6 @@
+// `f64`/`f32` `test_type!` cases use literals close to PI on purpose.
+#![allow(clippy::approx_constant)]
+
 extern crate time_ as time;
 
 use std::borrow::Cow;

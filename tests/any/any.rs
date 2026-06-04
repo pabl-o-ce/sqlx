@@ -172,7 +172,7 @@ async fn it_can_query_by_string_args() -> sqlx::Result<()> {
             .bind(Some(&string))
             .bind(Some(&string[..]))
             .bind(&Option::<String>::None)
-            .bind(&string.clone())
+            .bind(string.clone())
             .bind(&tuple.0); // should not get "temporary value is freed at the end of this statement" here
 
         let result = query.fetch_one(&mut conn).await?;
@@ -192,7 +192,7 @@ async fn it_can_query_by_string_args() -> sqlx::Result<()> {
             query.try_bind(Some(&string))?;
             query.try_bind(Some(&string[..]))?;
             query.try_bind(&Option::<String>::None)?;
-            query.try_bind(&string.clone())?;
+            query.try_bind(string.clone())?;
             query.try_bind(&tuple.0)?;
 
             Ok(query)
