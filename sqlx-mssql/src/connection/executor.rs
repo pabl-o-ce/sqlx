@@ -473,7 +473,11 @@ fn build_columns_from_describe_rows(
     for (ordinal, row) in rows.iter().enumerate() {
         let name: &str = row.get("name").unwrap_or("");
         let type_name: &str = row.get("system_type_name").unwrap_or("UNKNOWN");
-        let type_info = MssqlTypeInfo::new(type_name.to_uppercase());
+        // `sp_describe_first_result_set` reports types with precision/length
+        // (e.g. "nvarchar(4000)"); store the base name so it matches the runtime
+        // fetch path (`type_name_for_tiberius`) and the other column types.
+        let base_name = type_name.split('(').next().unwrap_or(type_name).trim();
+        let type_info = MssqlTypeInfo::new(base_name.to_uppercase());
         let is_nullable: Option<bool> = row.get("is_nullable");
 
         let source_table: Option<&str> = row.get("source_table");

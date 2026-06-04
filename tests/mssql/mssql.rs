@@ -48,7 +48,10 @@ async fn it_can_select_expression_by_name() -> anyhow::Result<()> {
 #[sqlx_macros::test]
 async fn it_can_fail_to_connect() -> anyhow::Result<()> {
     let mut url = dotenvy::var("DATABASE_URL")?;
-    url = url.replace("Password", "NotPassword");
+    // Corrupt the password to force an authentication failure. The configured
+    // password doesn't literally contain "Password" (e.g. "YourStrong!Passw0rd"),
+    // so prefix the `sa:` credential rather than rely on a specific substring.
+    url = url.replacen("sa:", "sa:wrong-", 1);
 
     let res = MssqlConnection::connect(&url).await;
     let err = res.unwrap_err();

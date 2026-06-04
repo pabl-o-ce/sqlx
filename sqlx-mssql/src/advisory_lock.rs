@@ -196,8 +196,16 @@ impl MssqlAdvisoryLock {
     /// Returns `Ok(true)` if the lock was successfully released, `Ok(false)`
     /// if the lock was not held by this session.
     pub async fn release(&self, conn: &mut MssqlConnection) -> Result<bool, Error> {
+        // `sp_releaseapplock` *raises* error 1223 (rather than returning a
+        // status) when the lock isn't held by this session; catch it and map it
+        // to the -999 sentinel so a not-held release reports `Ok(false)`.
         let sql = "DECLARE @r INT; \
-                   EXEC @r = sp_releaseapplock @Resource = @p1, @LockOwner = 'Session'; \
+                   BEGIN TRY \
+                       EXEC @r = sp_releaseapplock @Resource = @p1, @LockOwner = 'Session'; \
+                   END TRY \
+                   BEGIN CATCH \
+                       IF ERROR_NUMBER() = 1223 SET @r = -999; ELSE THROW; \
+                   END CATCH; \
                    SELECT @r;";
 
         let status: i32 = query_scalar(sql)
