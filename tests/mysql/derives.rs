@@ -143,6 +143,11 @@ async fn test_derive_strong_enum() -> anyhow::Result<()> {
     Ok(())
 }
 
+// This test derives `sqlx::Type` for `#[repr(u16/u32/u64)]` enums, which cannot
+// generate a Postgres impl (Postgres has no unsigned integer types). Skip it
+// when the `postgres` feature is also enabled (e.g. under `--all-features`); it
+// still runs under the MySQL feature set.
+#[cfg(not(feature = "postgres"))]
 #[sqlx::test]
 async fn test_derive_weak_enum() -> anyhow::Result<()> {
     #[derive(sqlx::Type, Debug, PartialEq, Eq)]
