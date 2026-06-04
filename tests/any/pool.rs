@@ -84,6 +84,17 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
 
     sqlx_test::setup_if_needed();
 
+    // MSSQL has no `CREATE TEMPORARY TABLE`; it uses session-scoped temp tables
+    // named with a leading `#` (which persist for the connection's session).
+    #[cfg(feature = "mssql")]
+    const TABLE: &str = "#conn_stats";
+    #[cfg(feature = "mssql")]
+    const CREATE_TABLE: &str = "CREATE TABLE";
+    #[cfg(not(feature = "mssql"))]
+    const TABLE: &str = "conn_stats";
+    #[cfg(not(feature = "mssql"))]
+    const CREATE_TABLE: &str = "CREATE TEMPORARY TABLE";
+
     let conn_options: AnyConnectOptions = std::env::var("DATABASE_URL")?.parse()?;
 
     let current_id = AtomicI32::new(0);
@@ -101,15 +112,13 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
                 let statement = format!(
                     // language=SQL
                     r#"
-                    CREATE TEMPORARY TABLE conn_stats(
+                    {CREATE_TABLE} {TABLE}(
                         id int primary key,
                         before_acquire_calls int default 0,
                         after_release_calls int default 0
                     );
-                    INSERT INTO conn_stats(id) VALUES ({});
-                    "#,
-                    // Until we have generalized bind parameters
-                    id
+                    INSERT INTO {TABLE}(id) VALUES ({id});
+                    "#
                 );
 
                 conn.execute(AssertSqlSafe(statement)).await?;
@@ -123,18 +132,16 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
 
             Box::pin(async move {
                 // MySQL and MariaDB don't support UPDATE ... RETURNING
-                sqlx::query(
-                    r#"
-                        UPDATE conn_stats
-                        SET before_acquire_calls = before_acquire_calls + 1
-                    "#,
-                )
+                sqlx::query(AssertSqlSafe(format!(
+                    "UPDATE {TABLE} SET before_acquire_calls = before_acquire_calls + 1"
+                )))
                 .execute(&mut *conn)
                 .await?;
 
-                let stats: ConnStats = sqlx::query_as("SELECT * FROM conn_stats")
-                    .fetch_one(conn)
-                    .await?;
+                let stats: ConnStats =
+                    sqlx::query_as(AssertSqlSafe(format!("SELECT * FROM {TABLE}")))
+                        .fetch_one(conn)
+                        .await?;
 
                 // For even IDs, cap by the number of before_acquire calls.
                 // Ignore the check for odd IDs.
@@ -147,18 +154,16 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
             assert_eq!(meta.idle_for, Duration::ZERO);
 
             Box::pin(async move {
-                sqlx::query(
-                    r#"
-                        UPDATE conn_stats
-                        SET after_release_calls = after_release_calls + 1
-                    "#,
-                )
+                sqlx::query(AssertSqlSafe(format!(
+                    "UPDATE {TABLE} SET after_release_calls = after_release_calls + 1"
+                )))
                 .execute(&mut *conn)
                 .await?;
 
-                let stats: ConnStats = sqlx::query_as("SELECT * FROM conn_stats")
-                    .fetch_one(conn)
-                    .await?;
+                let stats: ConnStats =
+                    sqlx::query_as(AssertSqlSafe(format!("SELECT * FROM {TABLE}")))
+                        .fetch_one(conn)
+                        .await?;
 
                 // For odd IDs, cap by the number of before_release calls.
                 // Ignore the check for even IDs.
@@ -186,7 +191,7 @@ async fn test_pool_callbacks() -> anyhow::Result<()> {
     ];
 
     for (id, before_acquire_calls, after_release_calls) in pattern {
-        let conn_stats: ConnStats = sqlx::query_as("SELECT * FROM conn_stats")
+        let conn_stats: ConnStats = sqlx::query_as(AssertSqlSafe(format!("SELECT * FROM {TABLE}")))
             .fetch_one(&pool)
             .await?;
 

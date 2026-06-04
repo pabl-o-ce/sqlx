@@ -131,15 +131,23 @@ async fn test_context(args: &TestArgs) -> Result<TestContext<Mssql>, Error> {
 
     let mut conn = master_pool.acquire().await?;
 
-    // Create tracking table if it doesn't exist
+    // Create the tracking table if it doesn't exist. `IF NOT EXISTS ... CREATE`
+    // is not atomic across connections, so parallel `#[sqlx::test]`s can both
+    // pass the check and one then fails with 2714 ("already an object named
+    // '_sqlx_test_databases'"); swallow that race in TRY/CATCH.
     conn.execute(
         r#"
-        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '_sqlx_test_databases')
-        CREATE TABLE _sqlx_test_databases (
-            db_name NVARCHAR(200) NOT NULL PRIMARY KEY,
-            test_path NVARCHAR(MAX) NOT NULL,
-            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
-        );
+        IF OBJECT_ID('_sqlx_test_databases', 'U') IS NULL
+        BEGIN TRY
+            CREATE TABLE _sqlx_test_databases (
+                db_name NVARCHAR(200) NOT NULL PRIMARY KEY,
+                test_path NVARCHAR(MAX) NOT NULL,
+                created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+            );
+        END TRY
+        BEGIN CATCH
+            IF ERROR_NUMBER() <> 2714 THROW;
+        END CATCH;
     "#,
     )
     .await?;

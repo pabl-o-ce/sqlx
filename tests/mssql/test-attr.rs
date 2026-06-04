@@ -71,7 +71,7 @@ async fn it_gets_posts(pool: MssqlPool) -> sqlx::Result<()> {
 async fn it_gets_comments(pool: MssqlPool) -> sqlx::Result<()> {
     let post_1_comments: Vec<String> =
         sqlx::query_scalar("SELECT content FROM comment WHERE post_id = @p1 ORDER BY created_at")
-            .bind(&1)
+            .bind(1)
             .fetch_all(&pool)
             .await?;
 
@@ -82,7 +82,7 @@ async fn it_gets_comments(pool: MssqlPool) -> sqlx::Result<()> {
 
     let post_2_comments: Vec<String> =
         sqlx::query_scalar("SELECT content FROM comment WHERE post_id = @p1 ORDER BY created_at")
-            .bind(&2)
+            .bind(2)
             .fetch_all(&pool)
             .await?;
 

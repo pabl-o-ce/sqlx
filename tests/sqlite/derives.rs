@@ -1,6 +1,10 @@
 use sqlx::Sqlite;
 use sqlx_test::test_type;
 
+// A `#[repr(u32)]` enum cannot derive `sqlx::Type` for Postgres (Postgres has no
+// unsigned integer types), so skip this when the `postgres` feature is also
+// enabled (e.g. under `--all-features`); it still runs under the SQLite set.
+#[cfg(not(feature = "postgres"))]
 #[derive(Debug, PartialEq, sqlx::Type)]
 #[repr(u32)]
 enum Origin {
@@ -8,6 +12,7 @@ enum Origin {
     Bar = 2,
 }
 
+#[cfg(not(feature = "postgres"))]
 test_type!(origin_enum<Origin>(Sqlite,
     "1" == Origin::Foo,
     "2" == Origin::Bar,

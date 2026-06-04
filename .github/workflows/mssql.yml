@@ -1,0 +1,170 @@
+name: MSSQL CI
+
+# Dedicated CI for this MSSQL-focused fork of SQLx.
+# It mirrors the MSSQL-relevant parts of `sqlx.yml` but scoped to MSSQL features
+# only, so the status of the MSSQL driver changes is easy to see at a glance.
+# The upstream `sqlx.yml` / `sqlx-cli.yml` / `examples.yml` workflows are left
+# untouched.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "*-dev"
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - run: rustup component add rustfmt
+      - run: cargo fmt --all -- --check
+
+  check:
+    name: Check (MSSQL)
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        runtime: [ tokio ]
+        tls: [ native-tls, rustls, none ]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # Swatinem/rust-cache recommends setting up the rust toolchain first
+      # because it's used in the cache keys.
+      - name: Setup Rust
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup component add clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: >
+          cargo clippy
+          --no-default-features
+          --features mssql,any,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }},macros,migrate
+          -- -D warnings
+
+  test:
+    name: Unit Tests (MSSQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # `sqlx-mssql --all-features` enables tiberius `integrated-auth-gssapi`,
+      # which builds `libgssapi-sys` and needs the Kerberos dev headers.
+      - name: Install Kerberos headers (for tiberius integrated-auth-gssapi)
+        run: sudo apt-get update && sudo apt-get install -y libkrb5-dev
+
+      - name: Setup Rust
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test sqlx-core
+        run: cargo test -p sqlx-core --all-features
+
+      - name: Test sqlx-mssql
+        run: cargo test -p sqlx-mssql --all-features
+
+      # Note: use `--lib` to not run integration tests that require a DB.
+      - name: Test sqlx (lib only)
+        run: >
+          cargo test
+          -p sqlx
+          --lib
+          --no-default-features
+          --features mssql,any,_unstable-all-types,macros,migrate,runtime-tokio,tls-rustls
+
+  mssql:
+    name: MSSQL
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        mssql: [ 2022, 2019 ]
+        runtime: [ tokio ]
+        tls: [ rustls-ring, none ]
+    needs: check
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Rust
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: >
+          cargo build
+          --no-default-features
+          --features mssql,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }},macros,migrate
+
+      # Retry: the SQL Server base image pull from mcr.microsoft.com can return a
+      # transient 403 when many matrix jobs pull it concurrently.
+      - name: Start SQL Server
+        run: |
+          for i in 1 2 3; do
+            docker rm -f mssql_${{ matrix.mssql }} 2>/dev/null || true
+            if docker compose -f tests/docker-compose.yml run -d -p 1433:1433 --name mssql_${{ matrix.mssql }} mssql_${{ matrix.mssql }}; then
+              exit 0
+            fi
+            echo "::warning::SQL Server start attempt $i failed (transient registry error?); retrying in 20s"
+            sleep 20
+          done
+          echo "::error::Failed to start SQL Server after 3 attempts"
+          exit 1
+      - run: sleep 60
+
+      # Create data dir for offline mode
+      - run: mkdir .sqlx
+
+      - run: >
+          cargo test
+          --no-default-features
+          --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
+        env:
+          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx?sslmode=disabled
+          SQLX_OFFLINE_DIR: .sqlx
+          RUSTFLAGS: --cfg mssql_${{ matrix.mssql }}
+
+      # Run the `test-attr` test again to cover cleanup.
+      - run: >
+          cargo test
+          --test mssql-test-attr
+          --no-default-features
+          --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
+        env:
+          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx?sslmode=disabled
+          SQLX_OFFLINE_DIR: .sqlx
+          RUSTFLAGS: --cfg mssql_${{ matrix.mssql }}
+
+      # Remove test artifacts
+      - run: cargo clean -p sqlx
+
+      # Build the macros-test in offline mode (omit DATABASE_URL)
+      - run: >
+          cargo build
+          --no-default-features
+          --test mssql-macros
+          --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
+        env:
+          SQLX_OFFLINE: true
+          SQLX_OFFLINE_DIR: .sqlx
+          RUSTFLAGS: -D warnings --cfg mssql_${{ matrix.mssql }}
+
+      # Test macros in offline mode (still needs DATABASE_URL to run)
+      - run: >
+          cargo test
+          --no-default-features
+          --test mssql-macros
+          --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
+        env:
+          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx?sslmode=disabled
+          SQLX_OFFLINE: true
+          SQLX_OFFLINE_DIR: .sqlx
+          RUSTFLAGS: --cfg mssql_${{ matrix.mssql }}

@@ -12,6 +12,12 @@ impl_type_checking!(
         i16,
         i32,
         i64,
+
+        // Must come after the integer types: `bool::compatible` also matches
+        // TINYINT/INT/SMALLINT/BIGINT, but the integer types claim those first;
+        // BIT is matched only by `bool`.
+        bool,
+
         f32,
         f64,
 

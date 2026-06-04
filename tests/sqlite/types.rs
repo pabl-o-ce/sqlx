@@ -1,3 +1,6 @@
+// `f32` `test_type!` cases use a literal close to PI on purpose.
+#![allow(clippy::approx_constant)]
+
 extern crate time_ as time;
 
 use sqlx::sqlite::{Sqlite, SqliteRow};
@@ -116,7 +119,7 @@ mod chrono {
     ));
 
     test_type!(chrono_date_time_fixed_offset<DateTime::<FixedOffset>>(Sqlite, "SELECT datetime({0}) is datetime(?), {0}, ?",
-        "'2016-11-08T03:50:23-05:00'" == DateTime::<Utc>::from(FixedOffset::west_opt(5 * 3600).unwrap().with_ymd_and_hms(2016, 11, 08, 3, 50, 23).unwrap())
+        "'2016-11-08T03:50:23-05:00'" == DateTime::<Utc>::from(FixedOffset::west_opt(5 * 3600).unwrap().with_ymd_and_hms(2016, 11, 8, 3, 50, 23).unwrap())
     ));
 }
 
