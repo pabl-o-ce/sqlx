@@ -762,7 +762,7 @@ jobs:
           --no-default-features
           --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
         env:
-          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx
+          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx?sslmode=disabled
           SQLX_OFFLINE_DIR: .sqlx
           RUSTFLAGS: --cfg mssql_${{ matrix.mssql }}
 
@@ -773,7 +773,7 @@ jobs:
           --no-default-features
           --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
         env:
-          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx
+          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx?sslmode=disabled
           SQLX_OFFLINE_DIR: .sqlx
           RUSTFLAGS: --cfg mssql_${{ matrix.mssql }}
 
@@ -798,7 +798,7 @@ jobs:
           --test mssql-macros
           --features any,mssql,macros,migrate,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }}
         env:
-          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx
+          DATABASE_URL: mssql://sa:YourStrong!Passw0rd@localhost:1433/sqlx?sslmode=disabled
           SQLX_OFFLINE: true
           SQLX_OFFLINE_DIR: .sqlx
           RUSTFLAGS: --cfg mssql_${{ matrix.mssql }}
