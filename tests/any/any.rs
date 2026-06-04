@@ -161,9 +161,11 @@ async fn it_can_query_by_string_args() -> sqlx::Result<()> {
 
     // MSSQL's native placeholder is `@pN` (the `Any` driver does not rewrite
     // placeholders), so it needs its own branch like Postgres above.
+    // SQL Server requires every column of a derived table to be named, so the
+    // subquery column is aliased (`AS n`); error 8155 otherwise.
     #[cfg(all(feature = "mssql", not(feature = "postgres")))]
     const SQL: &str = "SELECT 'Hello, world!' \
-        FROM (SELECT 1) AS t \
+        FROM (SELECT 1 AS n) AS t \
         WHERE 'Hello, world!' IN (@p1, @p2, @p3, @p4, @p5, @p6, @p7)";
 
     // MySQL and SQLite use `?` natively.
