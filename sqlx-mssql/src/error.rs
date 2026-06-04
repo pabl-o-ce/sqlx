@@ -93,12 +93,12 @@ impl DatabaseError for MssqlDatabaseError {
         match self.number {
             // Cannot insert duplicate key
             2601 | 2627 => ErrorKind::UniqueViolation,
-            // Foreign key constraint violation
+            // 547 is raised for both FOREIGN KEY and CHECK constraint
+            // violations; the message text distinguishes them.
+            547 if self.message.contains("CHECK constraint") => ErrorKind::CheckViolation,
             547 => ErrorKind::ForeignKeyViolation,
             // Cannot insert NULL
             515 => ErrorKind::NotNullViolation,
-            // Check constraint violation
-            2628 => ErrorKind::CheckViolation,
             _ => ErrorKind::Other,
         }
     }

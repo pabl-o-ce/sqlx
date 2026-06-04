@@ -200,14 +200,11 @@ pub(crate) fn column_data_to_mssql_data(
             let fixed_offset = chrono::FixedOffset::east_opt(offset_secs).ok_or_else(|| {
                 Error::Protocol(format!("invalid timezone offset: {offset_secs} seconds"))
             })?;
-            let dt = naive
-                .and_local_timezone(fixed_offset)
-                .single()
-                .ok_or_else(|| {
-                    Error::Protocol(format!(
-                        "ambiguous or invalid local time for offset {offset_secs}s"
-                    ))
-                })?;
+            // The TDS DATETIMEOFFSET datetime portion is stored in UTC; attach
+            // UTC and convert to the stored offset (so `14:30+05:30` round-trips
+            // rather than being reinterpreted as `09:00+05:30`).
+            let dt = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(naive, chrono::Utc)
+                .with_timezone(&fixed_offset);
             Ok(MssqlData::DateTimeFixedOffset(dt))
         }
 

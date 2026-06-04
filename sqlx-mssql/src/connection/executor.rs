@@ -261,7 +261,10 @@ fn bind_arguments<'a>(
                 use chrono::Timelike as _;
                 let epoch = chrono::NaiveDate::from_ymd_opt(1, 1, 1)
                     .expect("epoch 0001-01-01 is always valid");
-                let naive = v.naive_local();
+                // TDS DATETIMEOFFSET stores the datetime portion in UTC (with the
+                // offset kept separately), so encode the UTC instant, not the
+                // local wall-clock time.
+                let naive = v.naive_utc();
                 let days = days_since_epoch_to_u32((naive.date() - epoch).num_days())?;
                 let time = naive.time();
                 let total_ns = u64::from(time.num_seconds_from_midnight()) * 1_000_000_000
