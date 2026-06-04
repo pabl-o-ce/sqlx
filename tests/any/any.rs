@@ -159,7 +159,15 @@ async fn it_can_query_by_string_args() -> sqlx::Result<()> {
         FROM (SELECT 1) AS t \
         WHERE 'Hello, world!' IN ($1, $2, $3, $4, $5, $6, $7)";
 
-    #[cfg(not(feature = "postgres"))]
+    // MSSQL's native placeholder is `@pN` (the `Any` driver does not rewrite
+    // placeholders), so it needs its own branch like Postgres above.
+    #[cfg(all(feature = "mssql", not(feature = "postgres")))]
+    const SQL: &str = "SELECT 'Hello, world!' \
+        FROM (SELECT 1) AS t \
+        WHERE 'Hello, world!' IN (@p1, @p2, @p3, @p4, @p5, @p6, @p7)";
+
+    // MySQL and SQLite use `?` natively.
+    #[cfg(all(not(feature = "postgres"), not(feature = "mssql")))]
     const SQL: &str = "SELECT 'Hello, world!' \
         FROM (SELECT 1) AS t \
         WHERE 'Hello, world!' IN (?, ?, ?, ?, ?, ?, ?)";
