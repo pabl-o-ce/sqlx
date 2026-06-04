@@ -42,8 +42,13 @@ impl Decode<'_, Mssql> for BigDecimal {
                 .map_err(|e| format!("failed to convert Decimal to BigDecimal: {e}").into()),
             MssqlData::I32(v) => Ok(BigDecimal::from(*v)),
             MssqlData::I64(v) => Ok(BigDecimal::from(*v)),
-            MssqlData::F64(v) => bigdecimal::FromPrimitive::from_f64(*v)
-                .ok_or_else(|| format!("failed to convert f64 {v} to BigDecimal").into()),
+            // Go through the shortest round-tripping decimal string rather than
+            // `from_f64` (which keeps the full binary artifact, e.g. MONEY
+            // 1234.5678 -> 1234.567800000000033...).
+            MssqlData::F64(v) => v
+                .to_string()
+                .parse::<BigDecimal>()
+                .map_err(|e| format!("failed to convert f64 {v} to BigDecimal: {e}").into()),
             MssqlData::String(ref s) => s
                 .parse::<BigDecimal>()
                 .map_err(|e| format!("failed to parse BigDecimal from string: {e}").into()),

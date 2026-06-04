@@ -5,7 +5,7 @@
 extern crate time_ as time;
 
 use sqlx::mssql::Mssql;
-use sqlx_test::test_type;
+use sqlx_test::{test_type, test_unprepared_type};
 
 test_type!(null<Option<i32>>(Mssql,
     "CAST(NULL as INT)" == None::<i32>
@@ -146,7 +146,10 @@ test_type!(null_bytes<Option<Vec<u8>>>(Mssql,
     "CAST(NULL AS VARBINARY(MAX))" == None::<Vec<u8>>,
 ));
 
-test_type!(xml<sqlx::mssql::MssqlXml>(Mssql,
+// SQL Server has no equality operator for the `xml` type (`xml = @p1` raises
+// error 402), so the prepared round-trip query the full `test_type!` macro
+// generates can't work; decode and compare in Rust instead.
+test_unprepared_type!(xml<sqlx::mssql::MssqlXml>(Mssql,
     "CAST('<root><item>hello</item></root>' AS XML)"
         == sqlx::mssql::MssqlXml::from("<root><item>hello</item></root>".to_owned()),
 ));
