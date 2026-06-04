@@ -18,16 +18,15 @@ impl MssqlArguments {
     where
         T: Encode<'q, Mssql> + Type<Mssql>,
     {
+        let len_before = self.values.len();
         let is_null = value.encode(&mut self.values)?;
-        if is_null.is_null() {
-            // If the encoder signaled null but didn't push a value, push a Null
-            if self
-                .values
-                .last()
-                .is_none_or(|v| !matches!(v, MssqlArgumentValue::Null))
-            {
-                self.values.push(MssqlArgumentValue::Null);
-            }
+        // If the encoder signaled null but didn't push a value, push a Null
+        // placeholder. Compare against the pre-encode length rather than the
+        // last element: checking the last element wrongly suppressed a NULL when
+        // the *previous* argument was also NULL, leaving that parameter
+        // undeclared (e.g. binding two `None`s -> "must declare @p2").
+        if is_null.is_null() && self.values.len() == len_before {
+            self.values.push(MssqlArgumentValue::Null);
         }
         Ok(())
     }
