@@ -154,10 +154,11 @@ impl Decode<'_, Mssql> for OffsetDateTime {
             MssqlData::DateTimeFixedOffset(v) => {
                 let local = v.naive_local();
                 let offset = time::UtcOffset::from_whole_seconds(v.offset().local_minus_utc())?;
-                Ok(
-                    PrimitiveDateTime::new(date_from_chrono(local.date())?, time_from_chrono(local.time())?)
-                        .assume_offset(offset),
+                Ok(PrimitiveDateTime::new(
+                    date_from_chrono(local.date())?,
+                    time_from_chrono(local.time())?,
                 )
+                .assume_offset(offset))
             }
             #[cfg(feature = "chrono")]
             MssqlData::NaiveDateTime(v) => Ok(PrimitiveDateTime::new(
