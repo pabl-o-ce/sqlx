@@ -104,7 +104,20 @@ jobs:
           --no-default-features
           --features mssql,_unstable-all-types,runtime-${{ matrix.runtime }},tls-${{ matrix.tls }},macros,migrate
 
-      - run: docker compose -f tests/docker-compose.yml run -d -p 1433:1433 --name mssql_${{ matrix.mssql }} mssql_${{ matrix.mssql }}
+      # Retry: the SQL Server base image pull from mcr.microsoft.com can return a
+      # transient 403 when many matrix jobs pull it concurrently.
+      - name: Start SQL Server
+        run: |
+          for i in 1 2 3; do
+            docker rm -f mssql_${{ matrix.mssql }} 2>/dev/null || true
+            if docker compose -f tests/docker-compose.yml run -d -p 1433:1433 --name mssql_${{ matrix.mssql }} mssql_${{ matrix.mssql }}; then
+              exit 0
+            fi
+            echo "::warning::SQL Server start attempt $i failed (transient registry error?); retrying in 20s"
+            sleep 20
+          done
+          echo "::error::Failed to start SQL Server after 3 attempts"
+          exit 1
       - run: sleep 60
 
       # Create data dir for offline mode
