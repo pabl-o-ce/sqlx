@@ -102,7 +102,7 @@ runtime-smol = ["_rt-smol", "sqlx-core/_rt-smol", "sqlx-macros?/_rt-smol"]
 runtime-tokio = ["_rt-tokio", "sqlx-core/_rt-tokio", "sqlx-macros?/_rt-tokio"]
 
 # TLS features
-tls-native-tls = ["sqlx-core/_tls-native-tls", "sqlx-macros?/_tls-native-tls"]
+tls-native-tls = ["sqlx-core/_tls-native-tls", "sqlx-macros?/_tls-native-tls", "sqlx-mssql?/tls-native-tls"]
 tls-rustls = ["tls-rustls-ring"] # For backwards compatibility
 tls-rustls-aws-lc-rs = ["sqlx-core/_tls-rustls-aws-lc-rs", "sqlx-macros?/_tls-rustls-aws-lc-rs"]
 tls-rustls-ring = ["tls-rustls-ring-webpki"] # For backwards compatibility

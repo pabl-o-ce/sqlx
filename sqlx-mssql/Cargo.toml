@@ -19,6 +19,12 @@ migrate = ["sqlx-core/migrate"]
 winauth = ["tiberius/winauth"]
 integrated-auth-gssapi = ["tiberius/integrated-auth-gssapi"]
 
+# TLS features
+# NOTE: no rustls support for now: tiberius' `native-tls` and `rustls` features are
+# mutually exclusive (https://github.com/prisma/tiberius/issues/317), and enabling both
+# would break `--all-features` builds.
+tls-native-tls = ["tiberius/native-tls"]
+
 # Type Integration features
 bigdecimal = ["dep:bigdecimal", "sqlx-core/bigdecimal", "tiberius/bigdecimal"]
 chrono = ["dep:chrono", "sqlx-core/chrono", "tiberius/chrono"]
