@@ -1167,6 +1167,35 @@ The GitHub Actions workflow tests across:
 - **Async runtimes:** tokio, async-global-executor, smol
 - **TLS backends:** native-tls, rustls-aws-lc-rs, rustls-ring, none
 
+### Test Concurrency and Connection Limits
+
+Each `#[sqlx::test]` gets its own database and pool, but every test in the run shares the single SQL Server container's connection capacity. If many tests run in parallel and fail with `PoolTimedOut`, either limit the test runner's concurrency:
+
+```bash
+cargo test -- --test-threads 4
+```
+
+or shrink the per-test pool by using the `PoolOptions` test signature and building the pool explicitly:
+
+```rust
+use sqlx::{pool::PoolOptions, mssql::MssqlConnectOptions, Mssql};
+
+#[sqlx::test]
+async fn basic_test(
+    pool_options: PoolOptions<Mssql>,
+    connect_options: MssqlConnectOptions,
+) -> sqlx::Result<()> {
+    let pool = pool_options
+        .max_connections(1)
+        .connect_with(connect_options)
+        .await?;
+
+    sqlx::query("SELECT 1").execute(&pool).await?;
+
+    Ok(())
+}
+```
+
 ---
 
 ## Test Coverage
