@@ -170,6 +170,56 @@ async fn it_reports_rows_affected_for_dml() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Regression test: read-only statements must never report a previous DML
+// statement's affected-row count. SQL Server's DONE tokens are per-statement so
+// there is no stale-count hazard by construction, but this pins that contract —
+// the same one upstream fixed for SQLite, where `sqlite3_changes()` leaked the
+// prior DML's count into SELECT/BEGIN/COMMIT (launchbadge/sqlx#4306).
+#[sqlx_macros::test]
+async fn it_does_not_leak_dml_counts_into_read_only_statements() -> anyhow::Result<()> {
+    let mut conn = new::<Mssql>().await?;
+
+    conn.execute("CREATE TABLE #gadgets (id INTEGER PRIMARY KEY, label NVARCHAR(50) NULL);")
+        .await?;
+
+    for index in 1..=5_i32 {
+        sqlx::query("INSERT INTO #gadgets (id) VALUES (@p1)")
+            .bind(index)
+            .execute(&mut conn)
+            .await?;
+    }
+
+    // UPDATE hitting 3 rows establishes the count that must not leak below.
+    let done = sqlx::query("UPDATE #gadgets SET label = @p1 WHERE id >= @p2")
+        .bind("hit")
+        .bind(3_i32)
+        .execute(&mut conn)
+        .await?;
+    assert_eq!(done.rows_affected(), 3);
+
+    // A SELECT matching no rows reports 0, not the UPDATE's 3.
+    let done = sqlx::query("SELECT id FROM #gadgets WHERE id = @p1")
+        .bind(999_i32)
+        .execute(&mut conn)
+        .await?;
+    assert_eq!(done.rows_affected(), 0);
+
+    // A SELECT reports its own returned-row count (matching Postgres, which
+    // parses it from the `SELECT n` command tag), never the previous DML's.
+    let done = sqlx::query("SELECT id FROM #gadgets WHERE id = @p1")
+        .bind(1_i32)
+        .execute(&mut conn)
+        .await?;
+    assert_eq!(done.rows_affected(), 1);
+
+    // BEGIN/COMMIT on the no-parameter batch path report 0, mirroring the
+    // upstream SQLite assertion.
+    let done = conn.execute("BEGIN TRANSACTION; COMMIT;").await?;
+    assert_eq!(done.rows_affected(), 0);
+
+    Ok(())
+}
+
 #[sqlx_macros::test]
 async fn it_can_return_1000_rows() -> anyhow::Result<()> {
     let mut conn = new::<Mssql>().await?;
