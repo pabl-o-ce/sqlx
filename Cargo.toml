@@ -30,7 +30,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.9.0-alpha.1"
+version = "0.9.0"
 license = "MIT OR Apache-2.0"
 # TODO: upgrade to edition 2024 (after merging all pending PRs)
 edition = "2021"
@@ -43,7 +43,7 @@ authors = [
     "Chloe Ross <orangesnowfox@gmail.com>",
     "Daniel Akhterov <akhterovd@gmail.com>",
 ]
-rust-version = "1.86.0"
+rust-version = "1.94.0"
 
 [package]
 name = "sqlx"
@@ -168,18 +168,18 @@ bstr = ["sqlx-core/bstr"]
 
 [workspace.dependencies]
 # Core Crates
-sqlx-core = { version = "=0.9.0-alpha.1", path = "sqlx-core" }
-sqlx-macros-core = { version = "=0.9.0-alpha.1", path = "sqlx-macros-core" }
-sqlx-macros = { version = "=0.9.0-alpha.1", path = "sqlx-macros" }
+sqlx-core = { version = "=0.9.0", path = "sqlx-core" }
+sqlx-macros-core = { version = "=0.9.0", path = "sqlx-macros-core" }
+sqlx-macros = { version = "=0.9.0", path = "sqlx-macros" }
 
 # Driver crates
-sqlx-mssql = { version = "=0.9.0-alpha.1", path = "sqlx-mssql" }
-sqlx-mysql = { version = "=0.9.0-alpha.1", path = "sqlx-mysql", default-features = false }
-sqlx-postgres = { version = "=0.9.0-alpha.1", path = "sqlx-postgres" }
-sqlx-sqlite = { version = "=0.9.0-alpha.1", path = "sqlx-sqlite" }
+sqlx-mssql = { version = "=0.9.0", path = "sqlx-mssql" }
+sqlx-mysql = { version = "=0.9.0", path = "sqlx-mysql", default-features = false }
+sqlx-postgres = { version = "=0.9.0", path = "sqlx-postgres" }
+sqlx-sqlite = { version = "=0.9.0", path = "sqlx-sqlite" }
 
 # Facade crate (for reference from sqlx-cli)
-sqlx = { version = "=0.9.0-alpha.1", path = ".", default-features = false }
+sqlx = { version = "=0.9.0", path = ".", default-features = false }
 
 # Common type integrations shared by multiple driver crates.
 # These are optional unless enabled in a workspace crate.
@@ -190,13 +190,25 @@ ipnet = "2.3.0"
 ipnetwork = "0.21.1"
 mac_address = "1.1.5"
 rust_decimal = { version = "1.36.0", default-features = false, features = ["std"] }
-time = { version = "0.3.37", features = ["formatting", "parsing", "macros"] }
+time = { version = "0.3.48", features = ["formatting", "parsing", "macros"] }
 uuid = "1.12.1"
 
 # Common utility crates
+base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
 cfg-if = "1.0.0"
 dotenvy = { version = "0.15.7", default-features = false }
-thiserror = { version = "2.0.17", default-features = false, features = ["std"] }
+thiserror = { version = "2.0.18", default-features = false, features = ["std"] }
+
+# Cryptography
+crc = { version = "3.0.0" }
+digest = { version = "0.11.2", default-features = false, features = ["alloc"] }
+hkdf = { version = "0.13.0" }
+hmac = { version = "0.13.0", default-features = false }
+md-5 = { version = "0.11.0", default-features = false }
+rsa = { version = "0.10.0-rc.18" } # FIXME: when `rsa 0.10` is released
+rand = { version = "0.10.1", features = ["thread_rng"], default-features = false }
+sha1 = { version = "0.11.0", default-features = false }
+sha2 = { version = "0.11.0", default-features = false }
 
 # Runtimes
 [workspace.dependencies.async-global-executor]
@@ -227,7 +239,7 @@ sqlx-sqlite = { workspace = true, optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.58"
-time_ = { version = "0.3.37", package = "time" }
+time_ = { version = "0.3.47", package = "time" }
 futures-util = { version = "0.3.32", default-features = false, features = ["alloc"] }
 env_logger = "0.11"
 async-std = { workspace = true, features = ["attributes"] }
@@ -239,18 +251,18 @@ paste = "1.0.6"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 url = "2.2.2"
-rand = "0.8.5"
-rand_xoshiro = "0.6.0"
 hex = "0.4.3"
 tempfile = "3.10.1"
 criterion = { version = "0.5.1", features = ["async_tokio"] }
-libsqlite3-sys = { version = "0.30.1" }
+libsqlite3-sys = { version = "0.37.0" }
+
+rand.workspace = true
 
 # If this is an unconditional dev-dependency then Cargo will *always* try to build `libsqlite3-sys`,
 # even when SQLite isn't the intended test target, and fail if the build environment is not set up for compiling C code.
 [target.'cfg(sqlite_test_sqlcipher)'.dev-dependencies]
 # Enable testing with SQLCipher if specifically requested.
-libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher"] }
+libsqlite3-sys = { version = "0.37.0", features = ["bundled-sqlcipher"] }
 
 # Common lint settings for the workspace
 [workspace.lints.clippy]
